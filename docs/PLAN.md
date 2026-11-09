@@ -50,7 +50,7 @@ GitHub 저장소 (private)
 - [~] ~~Anthropic 콘솔 API 키 발급~~ → 보류 (Claude API 미사용, 무료 템플릿 요약으로 진행)
 - [x] Kakao Developers 앱 생성 → 카카오 로그인 활성화, `talk_message` 동의항목, Redirect URI·Client Secret(플랫폼 키 > REST API 키), 웹 도메인(제품 링크 관리) 등록
 - [x] (2026-11-08 `scripts/test_calendar.py` 로 일정 생성 확인) Google Cloud 프로젝트 + Calendar API 활성화 → **서비스 계정** 생성 후 JSON 키 다운로드, 구글 캘린더에서 새 캘린더("Man Utd") 만들어 서비스 계정 이메일에 "일정 변경" 권한으로 공유 (OAuth 테스트 앱은 리프레시 토큰이 7일마다 만료돼 자동화에 부적합)
-- [ ] GitHub 계정 / private 저장소 생성 — 로컬 커밋·remote(`rolrend25-hub/manutd`) 설정됨, 원격 저장소 미생성 또는 로그인 안 됨 → push 전
+- [x] GitHub 저장소 `rolrend25-hub/manutd` (**public**, 2026-11-09) push 완료, Secrets `FOOTBALL_DATA_TOKEN` 등록, Pages(Actions 배포) 활성화 → https://rolrend25-hub.github.io/manutd/
 - [x] `.env.example` → `.env` 로 복사 후 키 입력
 - [x] `requirements.txt` (google-api-python-client, google-auth, tzdata) 설치
 
@@ -68,7 +68,7 @@ GitHub 저장소 (private)
 - [x] (초안 2026-11-09) 디자인: 레드(#DA291C)·블랙·화이트 + 골드/블루 포인트, Anton + Noto Sans KR → `site/assets/style.css`
 - [ ] 로고·올드 트래포드 이미지 기반 헤더 (초안은 'MU' 텍스트 마크 + CSS 그라데이션으로 대체 중)
 - [~] 페이지 초안 `site/index.html` + `site/assets/app.js`: 홈(카운트다운·KST/영국시간·최근결과·다가오는 경기) / 일정·결과(대회 필터) / 순위(PL·UCL) / 역사(우승·연표·감독) / 시즌 기록 완료. 선수·이적·경기 분석은 데이터 수집 후
-- [~] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) 완료 / GitHub Pages 배포는 GitHub 연결 후
+- [x] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) + GitHub Pages 자동 배포
 - [x] 우측 상단 동기화 시점 배지 (KST, 36시간 넘게 갱신 없으면 노란색 '갱신 지연')
 
 ### STEP 3. 알림 자동화
@@ -83,9 +83,9 @@ GitHub 저장소 (private)
 - [ ] (나중에 선택) 요약 생성부를 교체 가능하게 분리해 두고, 원하면 Claude API 분석으로 전환
 
 ### STEP 5. 운영 자동화
-- [~] GitHub Actions `.github/workflows/sync-and-deploy.yml` (2026-11-09 작성): 매일 05:00 UTC 전체 동기화 + 30분마다 점검·경기 종료 결과 대기 시 동기화 → 검증 통과 시에만 커밋·Pages 배포. 저장소 생성·시크릿 등록·첫 실행 확인 남음
+- [x] GitHub Actions `.github/workflows/sync-and-deploy.yml` (2026-11-09 첫 실행 성공): 매일 05:00 UTC 전체 동기화 + 30분마다 점검·경기 종료 결과 대기 시 동기화 → 검증 통과 시에만 커밋·Pages 배포. 수동 실행 시 `test_alert` 옵션으로 알림 테스트 가능
 - [x] 매 실행 검증 (2026-11-09): ① `scripts/check_privacy.py` 개인정보·비밀값·미허가 파일(허용 경로·`docs/approved_assets.txt` 미디어 승인) — 저장소 전체 + 커밋 직전 + 로컬 pre-commit 훅(`.githooks`) ② `scripts/check_sources.py` API 키·응답 구조 ③ `scripts/validate_data.py` 정합성·football-data↔FPL 교차검증·직전 커밋 DB 비교
-- [~] 문제 시 알림: `scripts/notify_status.py` → GitHub 이슈(소유자 할당 → 이메일·모바일 앱 푸시), 같은 문제 반복 알림 생략, 복구 시 자동 닫힘. 카톡 오류 알림은 STEP 3 카카오 토큰 후 추가
+- [x] 문제 시 알림 (2026-11-09 테스트: 이슈 #1 생성·소유자 할당 → 정상 실행 후 자동 닫힘 확인): `scripts/notify_status.py` → GitHub 이슈(소유자 할당 → 이메일·모바일 앱 푸시), 같은 문제 반복 알림 생략, 복구 시 자동 닫힘. 카톡 오류 알림은 STEP 3 카카오 토큰 후 추가
 - [ ] 시즌 전환 자동 처리 (매년 7월 새 시즌 생성, `is_current` 전환)
 
 ## 결정 사항 (2026-11-08 확정)
