@@ -38,7 +38,6 @@ jobs:
       deploy: ${{ steps.result.outputs.deploy }}
     env:
       PYTHONIOENCODING: utf-8
-      REPORT_DIR: ${{ runner.temp }}/reports
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,7 +48,9 @@ jobs:
           python-version: "3.13"
 
       - name: 준비
-        run: mkdir -p "$REPORT_DIR"
+        run: |
+          echo "REPORT_DIR=$RUNNER_TEMP/reports" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/reports"
 
       - name: 1. 개인정보·비밀값 검사 (저장소 전체)
         id: privacy
