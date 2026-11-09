@@ -1,0 +1,85 @@
+name: Sync data & deploy site
+
+on:
+  schedule:
+    - cron: "0 5 * * *"      # 매일 05:00 UTC (KST 14:00) 전체 동기화
+    - cron: "*/30 * * * *"   # 30분마다: 경기 종료 결과 대기 중일 때만 동기화
+  workflow_dispatch:          # Actions 탭에서 수동 실행
+  push:
+    branches: [main]
+    paths: ["site/**", "etl/**", "scripts/**", ".github/workflows/**"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sync-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 동기화 필요 여부 판단
+        id: gate
+        env:
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: python scripts/sync_needed.py
+
+      - name: 패키지 설치
+        if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: ETL (일정·결과 → 순위 → 선수)
+        if: steps.gate.outputs.run == 'true'
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          python etl/fetch_fixtures.py
+          python etl/fetch_standings.py
+          python etl/fetch_players.py
+
+      - name: 사이트 데이터 내보내기
+        if: steps.gate.outputs.run == 'true'
+        run: python scripts/export_site_data.py
+
+      - name: 변경분 커밋
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/manutd.db site/data
+          if git diff --cached --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "data: auto sync $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
+
+      - name: Pages 아티팩트 업로드
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: sync
+    if: needs.sync.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

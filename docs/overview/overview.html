@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root { --red:#DA291C; --deep:#9e1a10; --black:#141414; --ink:#1b1b1b; --muted:#6b6b6b; --line:#e3ded8;
+          --paper:#f7f5f2; --gold:#FBE122; --blue:#1d4ed8; --green:#15803d; --amber:#d97706; --gray:#9ca3af; }
+  * { box-sizing:border-box; }
+  body { margin:0; width:1600px; background:var(--paper); color:var(--ink); font:16px/1.5 "Noto Sans KR",sans-serif; }
+  .page { padding:48px 56px 56px; }
+  header { display:flex; align-items:flex-end; justify-content:space-between; border-bottom:5px solid var(--red); padding-bottom:18px; margin-bottom:34px; }
+  h1 { margin:0; font:900 44px/1.1 "Noto Sans KR"; letter-spacing:-1px; }
+  h1 em { font-style:normal; color:var(--red); }
+  .sub { color:var(--muted); margin-top:8px; font-size:17px; }
+  .date { text-align:right; color:var(--muted); font-size:15px; }
+  .date b { display:block; font:28px "Anton"; color:var(--ink); letter-spacing:.5px; }
+
+  h2 { display:flex; align-items:center; gap:12px; font:900 26px/1.2 "Noto Sans KR"; margin:0 0 18px; }
+  h2 .no { display:grid; place-items:center; width:38px; height:38px; border-radius:50%; background:var(--red); color:#fff; font:20px "Anton"; }
+  h2 small { font:500 15px "Noto Sans KR"; color:var(--muted); }
+  section { margin-bottom:40px; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.06); padding:24px; }
+
+  /* 1. 일하는 방식 */
+  .loop { display:flex; align-items:stretch; gap:0; }
+  .lstep { flex:1; background:#fff; border-radius:14px; padding:16px 14px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.05); position:relative; }
+  .lstep .ic { font:30px "Anton"; color:var(--red); }
+  .lstep b { display:block; font-size:18px; margin:2px 0 4px; }
+  .lstep span { font-size:13.5px; color:var(--muted); }
+  .lstep.user { background:var(--black); color:#fff; } .lstep.user span { color:#bbb; } .lstep.user .ic { color:var(--gold); }
+  .arrow { width:34px; display:grid; place-items:center; color:var(--red); font:900 26px sans-serif; flex:none; }
+  .who { display:flex; gap:18px; margin-top:12px; font-size:14px; color:var(--muted); }
+  .who i { display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:6px; }
+
+  /* 2. 타임라인 */
+  .tl { position:relative; display:grid; grid-template-columns:repeat(4, 1fr); gap:18px; }
+  .ev { background:#fff; border-radius:14px; padding:16px 18px 16px; box-shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.05); border-top:6px solid var(--red); position:relative; }
+  .ev.user { border-top-color:var(--black); }
+  .ev.decide { border-top-color:var(--gold); }
+  .ev.wait { border-top-color:var(--gray); background:#fbfaf8; }
+  .ev .n { position:absolute; top:12px; right:14px; font:26px "Anton"; color:#e9e4de; }
+  .ev .req { font-size:13px; font-weight:700; color:var(--red); margin-bottom:2px; }
+  .ev.user .req { color:var(--black); } .ev.decide .req { color:#a07b00; } .ev.wait .req { color:var(--muted); }
+  .ev h3 { margin:0 0 8px; font:900 19px/1.3 "Noto Sans KR"; padding-right:28px; }
+  .ev .how { font-size:14px; color:#444; margin:0 0 8px; }
+  .ev code { font:600 12.5px Consolas, monospace; background:#f2efeb; padding:1px 6px; border-radius:5px; color:#7a1a12; white-space:nowrap; }
+  .ev .res { font-size:14px; background:var(--paper); border-radius:8px; padding:8px 10px; }
+  .ev .res b { color:var(--green); }
+  .ev.wait .res b { color:var(--amber); }
+  .ev .res .x { color:var(--red); font-weight:700; }
+
+  /* 3. 구조도 */
+  .flow { display:grid; grid-template-columns: 1.05fr 40px 1.15fr 40px 1.35fr 40px 1fr 40px 1.1fr; align-items:stretch; }
+  .col h4 { margin:0 0 10px; font:900 15px "Noto Sans KR"; color:var(--muted); letter-spacing:1px; text-align:center; }
+  .box { border-radius:12px; padding:12px 14px; margin-bottom:10px; font-size:13.5px; background:#fff; border:2px solid var(--line); }
+  .box b { display:block; font-size:15.5px; margin-bottom:2px; }
+  .box.src { border-color:#c7d2fe; background:#eef2ff; }
+  .box.src.off { border-style:dashed; background:#f5f5f5; border-color:#d4d4d4; color:#777; }
+  .box.etl { border-color:#fecaca; background:#fff5f4; }
+  .box.etl code, .box.out code { font:700 12.5px Consolas, monospace; color:#7a1a12; }
+  .box.db { background:var(--black); color:#fff; border-color:var(--black); }
+  .box.db .grp { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .box.db .grp span { font-size:11.5px; background:#2b2b2b; border-radius:5px; padding:2px 6px; color:#ddd; }
+  .box.db .grp span.new { background:var(--red); color:#fff; }
+  .box.db .lbl { font-size:12px; color:var(--gold); font-weight:700; margin-top:9px; }
+  .box.out { border-color:#fde68a; background:#fffbeb; }
+  .box.web { border-color:#bbf7d0; background:#f0fdf4; }
+  .box.plan { border-style:dashed; border-color:#cbd5e1; background:#f8fafc; color:#555; }
+  .box .tag { display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; margin-left:4px; vertical-align:2px; }
+  .tag.ok { background:#dcfce7; color:var(--green); } .tag.todo { background:#e5e7eb; color:#555; } .tag.no { background:#fee2e2; color:var(--red); }
+  .fa { display:flex; align-items:center; justify-content:center; color:var(--red); font:900 30px sans-serif; }
+
+  /* 4. 진행 현황 */
+  .steps { display:grid; grid-template-columns:repeat(6, 1fr); gap:14px; }
+  .st { background:#fff; border-radius:14px; padding:16px; box-shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.05); }
+  .st .k { font:22px "Anton"; color:var(--red); }
+  .st b { display:block; font-size:16px; margin:2px 0 10px; }
+  .bar { height:10px; border-radius:999px; background:#eee; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--red); border-radius:999px; }
+  .st .pct { font:20px "Anton"; margin-top:8px; }
+  .st ul { margin:8px 0 0; padding-left:18px; font-size:13px; color:#555; }
+  .st li.done { color:var(--green); } .st li.todo { color:#888; }
+
+  .next { display:grid; grid-template-columns:1.2fr 1fr; gap:18px; }
+  .next .card h3 { margin:0 0 10px; font:900 19px "Noto Sans KR"; }
+  .next ol { margin:0; padding-left:22px; } .next li { margin:5px 0; }
+  .note { font-size:14px; color:var(--muted); }
+  .kv { display:grid; grid-template-columns:150px 1fr; gap:6px 12px; font-size:14.5px; }
+  .kv dt { font-weight:700; } .kv dd { margin:0; color:#444; }
+  footer { margin-top:20px; font-size:13px; color:var(--muted); text-align:right; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>맨유 팬 사이트 프로젝트 — <em>지금까지의 진행 정리</em></h1>
+      <div class="sub">어떤 요청으로 · 어떤 방식으로 · 무엇을 만들었고 · 어떻게 연결되어 있는지</div>
+    </div>
+    <div class="date">기준일<b>2026. 11. 09</b></div>
+  </header>
+
+  <!-- 1 -->
+  <section>
+    <h2><span class="no">1</span>일하는 방식 <small>모든 단계가 같은 순서로 반복됩니다</small></h2>
+    <div class="loop">
+      <div class="lstep user"><div class="ic">01</div><b>요청</b><span>사용자가 원하는 것을<br>말로 요청</span></div>
+      <div class="arrow">›</div>
+      <div class="lstep"><div class="ic">02</div><b>조사 · 계획</b><span>API 응답 구조 확인<br><code style="font-size:11px">docs/PLAN.md</code> 에 단계 기록</span></div>
+      <div class="arrow">›</div>
+      <div class="lstep user"><div class="ic">03</div><b>승인 · 결정</b><span>무료 API만 사용 등<br>중요한 선택은 사용자가 결정</span></div>
+      <div class="arrow">›</div>
+      <div class="lstep"><div class="ic">04</div><b>스크립트 작성</b><span>Python 파일 1개 =<br>작업 1개</span></div>
+      <div class="arrow">›</div>
+      <div class="lstep"><div class="ic">05</div><b>실제 실행 · 검증</b><span>실데이터로 돌려보고<br>합계·중복·화면 캡처 확인</span></div>
+      <div class="arrow">›</div>
+      <div class="lstep"><div class="ic">06</div><b>기록 · 다음 제안</b><span>PLAN.md 체크 표시<br>다음 단계 후보 제시</span></div>
+    </div>
+    <div class="who"><span><i style="background:var(--black)"></i>사용자가 한 일</span><span><i style="background:var(--red)"></i>Claude가 한 일</span></div>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <h2><span class="no">2</span>요청별 진행 기록 <small>요청 → 진행 방식 → 결과</small></h2>
+    <div class="tl">
+      <div class="ev"><div class="n">01</div><div class="req">요청 · “사이트 만들기 전에 API·DB부터”</div>
+        <h3>필요한 데이터 출처(API) 조사</h3>
+        <p class="how">용도별 무료/유료 API 비교 → 아키텍처 결정</p>
+        <div class="res"><b>✓</b> <code>docs/PLAN.md</code> 작성<br>GitHub Pages + Actions 구조 결정</div></div>
+
+      <div class="ev"><div class="n">02</div><div class="req">요청 · 데이터베이스 설계</div>
+        <h3>DB 설계 및 생성</h3>
+        <p class="how"><code>schema.sql</code> 테이블 20개 + 뷰 3개<br><code>seed.sql</code> 역사·우승·감독 수기 입력</p>
+        <div class="res"><b>✓</b> <code>data/manutd.db</code> 생성<br>우승 68건 · 시즌 35개 · 연표 15건</div></div>
+
+      <div class="ev user"><div class="n">03</div><div class="req">사용자 작업 · 환경 준비</div>
+        <h3>키 발급 · 설치</h3>
+        <p class="how">Python 3.13, football-data 토큰, API-Football 키, 카카오 앱, 구글 캘린더 서비스 계정</p>
+        <div class="res"><b>✓</b> <code>.env</code> 에 키 저장 (Git 업로드 제외)<br>캘린더 일정 생성 테스트 성공</div></div>
+
+      <div class="ev decide"><div class="n">04</div><div class="req">요청 · “! py scripts/check_apis.py”</div>
+        <h3>API 키 점검 → 방향 결정</h3>
+        <p class="how">실제 요청을 보내 접근 범위 확인</p>
+        <div class="res"><b>✓</b> football-data 정상<br><span class="x">✗</span> API-Football 무료는 2026 시즌 차단<br>⇒ <b style="color:#a07b00">football-data + FPL 로 구성</b></div></div>
+
+      <div class="ev"><div class="n">05</div><div class="req">요청 · “다음 스텝 진행”</div>
+        <h3>경기 일정 · 결과 수집</h3>
+        <p class="how"><code>etl/fetch_fixtures.py</code><br>재실행해도 중복 없음 · 킥오프 변경 감지</p>
+        <div class="res"><b>✓</b> 46경기 저장 (PL 38 + 챔스 8)<br>13경기 종료 · 3승 4무 6패</div></div>
+
+      <div class="ev"><div class="n">06</div><div class="req">요청 · “다음 스텝 + 웹페이지 초안”</div>
+        <h3>순위 수집 + 웹페이지 초안</h3>
+        <p class="how"><code>fetch_standings.py</code> → <code>export_site_data.py</code> → <code>site/</code><br>PC·모바일 화면 캡처로 검증</p>
+        <div class="res"><b>✓</b> PL 18위 · 챔스 17위<br>페이지 7개 (홈·일정·순위·선수·이적·역사·기록)</div></div>
+
+      <div class="ev"><div class="n">07</div><div class="req">요청 · “선수 데이터 수집”</div>
+        <h3>선수 · 부상 정보 수집</h3>
+        <p class="how"><code>etl/fetch_players.py</code> (FPL, 키 불필요)<br>골 합계 ↔ 팀 득점 교차 검증</p>
+        <div class="res"><b>✓</b> 선수 34명 · 경기별 기록 135행<br>부상·징계 7명 한글 표시</div></div>
+
+      <div class="ev wait"><div class="n">08</div><div class="req">질문 · “모바일에서도 볼 수 있니?”</div>
+        <h3>배포 방법 검토</h3>
+        <p class="how">화면은 모바일 대응 완료, 파일이 PC에만 있음<br>무료 GitHub Pages는 Private 저장소 불가</p>
+        <div class="res"><b>⏸</b> 추천: Cloudflare Pages + Private 저장소<br>(GitHub 연결 후 진행 예정)</div></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <h2><span class="no">3</span>시스템 구조 <small>데이터가 어디서 와서 어디로 가는지</small></h2>
+    <div class="card">
+      <div class="flow">
+        <div class="col"><h4>① 외부 데이터</h4>
+          <div class="box src"><b>football-data.org</b>일정 · 결과 · 순위<br>PL · 챔스만 (무료)</div>
+          <div class="box src"><b>Fantasy Premier League</b>선수 · 스탯 · 부상<br>키 불필요, PL만</div>
+          <div class="box src off"><b>API-Football</b>무료는 2022~24만<br>→ 과거 시즌 보충용</div>
+          <div class="box src off"><b>Wikipedia 등</b>1886~1992 기록<br>→ 1회 수집 예정</div>
+        </div>
+        <div class="fa">›</div>
+        <div class="col"><h4>② 수집 (ETL)</h4>
+          <div class="box etl"><code>fetch_fixtures.py</code><span class="tag ok">완료</span><br>경기 일정·스코어</div>
+          <div class="box etl"><code>fetch_standings.py</code><span class="tag ok">완료</span><br>PL·챔스 순위표</div>
+          <div class="box etl"><code>fetch_players.py</code><span class="tag ok">완료</span><br>선수·경기별 기록·부상</div>
+          <div class="box plan"><code>fetch_transfers</code> · <code>backfill</code><span class="tag todo">예정</span><br>이적 · 과거 시즌</div>
+          <div class="note" style="font-size:12.5px">공통 기능: <code style="font:700 12px Consolas;color:#7a1a12">etl/common.py</code><br>키 읽기 · 재시도 · 실행 기록</div>
+        </div>
+        <div class="fa">›</div>
+        <div class="col"><h4>③ 저장소 (DB)</h4>
+          <div class="box db"><b>data/manutd.db</b><span style="font-size:12.5px;color:#aaa">SQLite 파일 1개 · 시간은 모두 UTC 저장</span>
+            <div class="lbl">경기</div><div class="grp"><span>matches</span><span>teams</span><span>player_match_stats</span><span>match_events</span></div>
+            <div class="lbl">순위 · 기록</div><div class="grp"><span class="new">league_table</span><span>season_standings</span><span>honours</span><span>seasons</span></div>
+            <div class="lbl">선수</div><div class="grp"><span>players</span><span>squad_memberships</span><span>player_season_stats</span><span class="new">player_availability</span><span>transfers</span></div>
+            <div class="lbl">역사</div><div class="grp"><span>club_info</span><span>managers</span><span>history_timeline</span></div>
+            <div class="lbl">자동화</div><div class="grp"><span>sync_log</span><span>notifications</span><span>match_analyses</span></div>
+            <div style="font-size:11.5px;color:#aaa;margin-top:8px"><span style="background:var(--red);color:#fff;border-radius:4px;padding:0 5px">빨강</span> = 이번에 추가한 테이블</div>
+          </div>
+        </div>
+        <div class="fa">›</div>
+        <div class="col"><h4>④ 내보내기</h4>
+          <div class="box out"><code>export_site_data.py</code><br>DB → 웹용 데이터 변환</div>
+          <div class="box out"><b>site/data/data.js</b>파일 더블클릭으로도 열리게<br><b style="margin-top:6px">data.json</b>서버 배포용</div>
+        </div>
+        <div class="fa">›</div>
+        <div class="col"><h4>⑤ 보여주기 · 알림</h4>
+          <div class="box web"><b>웹페이지 <span class="tag ok">초안</span></b><code style="font:700 12px Consolas">site/index.html</code><br>한국·영국 시간 자동 변환<br>(영국 서머타임 반영)</div>
+          <div class="box plan"><b>배포 <span class="tag todo">예정</span></b>Cloudflare Pages → 휴대폰</div>
+          <div class="box plan"><b>알림 <span class="tag todo">예정</span></b>구글 캘린더 알람<br>카톡 리마인드 · 결과 요약</div>
+          <div class="box plan"><b>자동 실행 <span class="tag todo">예정</span></b>GitHub Actions<br>매일 1회 · 15분마다</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <h2><span class="no">4</span>단계별 진행 현황 <small>docs/PLAN.md 기준</small></h2>
+    <div class="steps">
+      <div class="st"><div class="k">STEP 0</div><b>환경 준비</b><div class="bar"><i style="width:88%"></i></div><div class="pct">7 / 8</div>
+        <ul><li class="done">키·설치·캘린더 완료</li><li class="todo">GitHub 저장소 연결</li></ul></div>
+      <div class="st"><div class="k">STEP 1</div><b>데이터 수집</b><div class="bar"><i style="width:38%"></i></div><div class="pct">3 / 8</div>
+        <ul><li class="done">일정·순위·선수</li><li class="todo">이적·경기 상세·백필</li></ul></div>
+      <div class="st"><div class="k">STEP 2</div><b>웹페이지</b><div class="bar"><i style="width:50%"></i></div><div class="pct">초안</div>
+        <ul><li class="done">디자인·7개 페이지</li><li class="todo">이미지·배포</li></ul></div>
+      <div class="st"><div class="k">STEP 3</div><b>알림 자동화</b><div class="bar"><i style="width:0"></i></div><div class="pct">0 / 4</div>
+        <ul><li class="todo">캘린더 알람·카톡 리마인드</li></ul></div>
+      <div class="st"><div class="k">STEP 4</div><b>결과 요약</b><div class="bar"><i style="width:0"></i></div><div class="pct">0 / 3</div>
+        <ul><li class="todo">템플릿 요약 → 카톡 전송</li></ul></div>
+      <div class="st"><div class="k">STEP 5</div><b>운영 자동화</b><div class="bar"><i style="width:0"></i></div><div class="pct">0 / 3</div>
+        <ul><li class="todo">GitHub Actions 예약 실행</li></ul></div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="next" style="margin-bottom:0">
+    <div class="card"><h3>📌 확정된 결정 사항</h3>
+      <dl class="kv">
+        <dt>데이터 API</dt><dd>무료만 사용 — football-data + FPL (유료 API-Football 미사용)</dd>
+        <dt>경기 분석</dt><dd>Claude API 미사용 → 규칙 기반 한국어 요약 (나중에 교체 가능)</dd>
+        <dt>폰 알람</dt><dd>구글 캘린더 (1일 전 · 1시간 전 알림)</dd>
+        <dt>공개 범위</dt><dd>개인용 비공개 · 검색 노출 차단 · 공식 엠블럼 미사용</dd>
+        <dt>알려진 한계</dt><dd>FA컵·EFL컵 경기 없음 · 챔스 선수 기록 없음 · 등번호 미제공</dd>
+      </dl></div>
+    <div class="card"><h3>➡ 다음 작업 후보</h3>
+      <ol>
+        <li><b>GitHub 연결 + Cloudflare Pages 배포</b> — 휴대폰에서 보기</li>
+        <li>선수 한글 이름 입력</li>
+        <li>이적 현황 수집 (<code style="font:600 12.5px Consolas;color:#7a1a12">fetch_transfers.py</code>)</li>
+        <li>2025-26 시즌 · 과거 기록 백필</li>
+        <li>STEP 3 알림 (캘린더 · 카톡)</li>
+      </ol></div>
+  </section>
+  <footer>데이터 갱신 순서: fetch_fixtures → fetch_standings → fetch_players → export_site_data → 웹페이지</footer>
+</div>
+</body>
+</html>

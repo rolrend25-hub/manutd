@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Red Devils Matchday</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="#home" aria-label="홈">
+      <span class="brand-mark">MU</span>
+      <span class="brand-text"><b>RED DEVILS</b><small>맨체스터 유나이티드 팬 페이지</small></span>
+    </a>
+    <button class="nav-toggle" aria-label="메뉴" aria-expanded="false">☰</button>
+    <nav class="nav">
+      <a href="#home" data-page="home">홈</a>
+      <a href="#fixtures" data-page="fixtures">일정·결과</a>
+      <a href="#table" data-page="table">순위</a>
+      <a href="#players" data-page="players">선수</a>
+      <a href="#transfers" data-page="transfers">이적</a>
+      <a href="#history" data-page="history">역사</a>
+      <a href="#records" data-page="records">시즌 기록</a>
+    </nav>
+  </div>
+</header>
+
+<main id="app" class="wrap"></main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>개인용 비공식 팬 페이지 · 데이터: football-data.org, Fantasy Premier League</p>
+    <p id="sync-info"></p>
+  </div>
+</footer>
+
+<script src="data/data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

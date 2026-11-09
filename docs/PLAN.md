@@ -50,25 +50,25 @@ GitHub 저장소 (private)
 - [~] ~~Anthropic 콘솔 API 키 발급~~ → 보류 (Claude API 미사용, 무료 템플릿 요약으로 진행)
 - [x] Kakao Developers 앱 생성 → 카카오 로그인 활성화, `talk_message` 동의항목, Redirect URI·Client Secret(플랫폼 키 > REST API 키), 웹 도메인(제품 링크 관리) 등록
 - [x] (2026-11-08 `scripts/test_calendar.py` 로 일정 생성 확인) Google Cloud 프로젝트 + Calendar API 활성화 → **서비스 계정** 생성 후 JSON 키 다운로드, 구글 캘린더에서 새 캘린더("Man Utd") 만들어 서비스 계정 이메일에 "일정 변경" 권한으로 공유 (OAuth 테스트 앱은 리프레시 토큰이 7일마다 만료돼 자동화에 부적합)
-- [ ] GitHub 계정 / private 저장소 생성
+- [ ] GitHub 계정 / private 저장소 생성 — 로컬 커밋·remote(`rolrend25-hub/manutd`) 설정됨, 원격 저장소 미생성 또는 로그인 안 됨 → push 전
 - [x] `.env.example` → `.env` 로 복사 후 키 입력
 - [x] `requirements.txt` (google-api-python-client, google-auth, tzdata) 설치
 
 ### STEP 1. 데이터 수집(ETL)
-- [ ] `etl/fetch_fixtures.py` — 전 대회 일정·결과 (football-data) → `matches`
-- [ ] `etl/fetch_standings.py` — 현재 시즌 PL 순위 → `season_standings`
-- [ ] `etl/fetch_players.py` — 스쿼드·PL 시즌 스탯 (FPL `bootstrap-static`) → `players`, `player_season_stats`
-- [ ] `etl/fetch_match_details.py` — PL 종료 경기 득점·도움·카드·선방·출전시간 (FPL `fixtures` + `element-summary`) → `match_events`, `player_match_stats`. PL 외 대회는 스코어만
+- [x] `etl/fetch_fixtures.py` — 일정·결과 (football-data) → `matches`, `teams` (2026-11-09 완료, 46경기 적재). 무료 플랜은 **PL·챔스만** 제공 → FA컵·EFL컵 경기는 별도 보완 필요. 공용 함수는 `etl/common.py`
+- [x] `etl/fetch_standings.py` — PL·챔스 리그 페이즈 전체 순위표 → `league_table`(신규 테이블), 맨유 행 → `season_standings` (2026-11-09 완료)
+- [x] `etl/fetch_players.py` — 스쿼드 34명·PL 시즌 합계·경기별 기록(출전시간·골·도움·카드·태클)·부상/징계 → `players`, `squad_memberships`, `player_season_stats`, `player_match_stats`, `player_availability`(신규), `matches.match_fpl_id` 연결 (2026-11-09 완료). 맨유 경기만 집계. 웹 '선수' 페이지 반영
+- [ ] `etl/fetch_match_details.py` — PL 종료 경기 득점·도움·카드 이벤트(분 단위 X, FPL `fixtures` stats) → `match_events`. (`player_match_stats` 는 fetch_players 에서 이미 수집) PL 외 대회는 스코어만
 - [ ] `etl/fetch_transfers.py` — 무료 API 없음 → FPL 신규/제외 선수 감지 + 수동 입력(CSV)으로 `transfers`
 - [ ] (선택) API-Football 무료로 2022-23~2024-25 시즌 라인업·이벤트 백필
 - [ ] `etl/backfill_history.py` — 1886~1992 과거 시즌 순위 1회 수집
 - [ ] 2025-26 시즌 전체 데이터 백필
 
 ### STEP 2. 웹페이지
-- [ ] 디자인 시스템: 맨유 레드(#DA291C)·블랙·화이트 + 포인트 블루/골드, 굵은 산스 헤드라인 폰트
-- [ ] 로고·올드 트래포드 이미지 기반 헤더
-- [ ] 페이지: 홈(다음 경기 카운트다운·최근 결과) / 역사 / 시즌별 기록 / 선수 통계 / 이적 현황 / 일정·결과(영국·한국 시간 병기) / 경기 분석
-- [ ] DB → JSON export 스크립트, GitHub Pages 배포
+- [x] (초안 2026-11-09) 디자인: 레드(#DA291C)·블랙·화이트 + 골드/블루 포인트, Anton + Noto Sans KR → `site/assets/style.css`
+- [ ] 로고·올드 트래포드 이미지 기반 헤더 (초안은 'MU' 텍스트 마크 + CSS 그라데이션으로 대체 중)
+- [~] 페이지 초안 `site/index.html` + `site/assets/app.js`: 홈(카운트다운·KST/영국시간·최근결과·다가오는 경기) / 일정·결과(대회 필터) / 순위(PL·UCL) / 역사(우승·연표·감독) / 시즌 기록 완료. 선수·이적·경기 분석은 데이터 수집 후
+- [~] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) 완료 / GitHub Pages 배포는 GitHub 연결 후
 
 ### STEP 3. 알림 자동화
 - [ ] 카카오 토큰 최초 발급 스크립트 (브라우저 로그인 1회) + 리프레시 토큰 자동 갱신·저장

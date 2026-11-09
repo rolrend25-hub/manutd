@@ -112,6 +112,26 @@ CREATE TABLE IF NOT EXISTS season_standings (
     PRIMARY KEY (season, competition_code)
 );
 
+-- 현재 시즌 리그 전체 순위표 (웹 '순위' 페이지용, 매일 덮어씀)
+CREATE TABLE IF NOT EXISTS league_table (
+    season          TEXT NOT NULL REFERENCES seasons(season),
+    competition_code TEXT NOT NULL,     -- 'PL' / 'UCL'(리그 페이즈)
+    position        INTEGER NOT NULL,
+    team_id         INTEGER REFERENCES teams(id),
+    team_name       TEXT NOT NULL,
+    played          INTEGER,
+    won             INTEGER,
+    drawn           INTEGER,
+    lost            INTEGER,
+    goals_for       INTEGER,
+    goals_against   INTEGER,
+    goal_diff       INTEGER,
+    points          INTEGER,
+    form            TEXT,               -- 'W,D,L,W,W' (제공될 때만)
+    updated_at      TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (season, competition_code, position)
+);
+
 CREATE TABLE IF NOT EXISTS honours (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     competition_code TEXT NOT NULL,
@@ -175,6 +195,16 @@ CREATE TABLE IF NOT EXISTS player_season_stats (
     source          TEXT,
     updated_at      TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (player_id, season, competition_code)
+);
+
+-- 현재 출전 가능 여부 (부상·징계·임대 등, FPL 'status'/'news' 기준, 매일 덮어씀)
+CREATE TABLE IF NOT EXISTS player_availability (
+    player_id       INTEGER PRIMARY KEY REFERENCES players(id),
+    status          TEXT,               -- a 가능 / d 불확실 / i 부상 / s 징계 / u 이탈(임대·이적) / n 자격 없음
+    chance_next     INTEGER,            -- 다음 라운드 출전 가능성 % (NULL = 정보 없음)
+    news            TEXT,
+    news_added_utc  TEXT,
+    updated_at      TEXT DEFAULT (datetime('now'))
 );
 
 -- ---------------------------------------------------------------------
