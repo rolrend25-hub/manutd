@@ -1,0 +1,10 @@
+#!/bin/sh
+# 커밋 직전 개인정보·비밀값·미허가 파일 검사 (scripts/check_privacy.py --staged)
+# 설정: git config core.hooksPath .githooks
+for PY in "$LOCALAPPDATA/Programs/Python/Python313/python.exe" python3 python; do
+  if "$PY" -c "import sys" >/dev/null 2>&1; then
+    exec "$PY" scripts/check_privacy.py --staged
+  fi
+done
+echo "pre-commit: Python 을 찾지 못해 개인정보 검사를 할 수 없습니다. 커밋을 중단합니다." >&2
+exit 1

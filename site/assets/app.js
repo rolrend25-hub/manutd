@@ -311,7 +311,20 @@
   window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
   setInterval(tickCountdown, 1000);
 
-  const sync = (D.last_sync || []).map((s) => s.finished_utc).sort().pop() || D.generated_utc;
+  const sync = D.synced_utc || (D.last_sync || []).map((s) => s.finished_utc).sort().pop() || D.generated_utc;
   document.getElementById("sync-info").textContent = `마지막 데이터 갱신: ${dateTime(sync, KST)} (한국 시간)`;
+  // 우측 상단 동기화 배지 (36시간 넘게 갱신 없으면 노란색 경고)
+  const badge = document.getElementById("sync-badge");
+  if (sync) {
+    const ageH = (Date.now() - new Date(sync).getTime()) / 3600e3;
+    const stale = ageH > 36;
+    badge.classList.toggle("stale", stale);
+    document.getElementById("sync-text").innerHTML =
+      `<span class="long">${stale ? "갱신 지연 · " : "데이터 동기화 "}</span><b>${esc(dateTime(sync, KST))}</b> KST`;
+    const SRC = { "football-data": "경기·순위", fpl: "선수" };
+    badge.title = (D.last_sync || []).map((s) => `${SRC[s.source] || s.source}(${s.job}): ${dateTime(s.finished_utc, KST)}`).join("\n");
+  } else {
+    badge.classList.add("none");
+  }
   render();
 })();

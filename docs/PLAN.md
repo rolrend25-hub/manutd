@@ -69,6 +69,7 @@ GitHub 저장소 (private)
 - [ ] 로고·올드 트래포드 이미지 기반 헤더 (초안은 'MU' 텍스트 마크 + CSS 그라데이션으로 대체 중)
 - [~] 페이지 초안 `site/index.html` + `site/assets/app.js`: 홈(카운트다운·KST/영국시간·최근결과·다가오는 경기) / 일정·결과(대회 필터) / 순위(PL·UCL) / 역사(우승·연표·감독) / 시즌 기록 완료. 선수·이적·경기 분석은 데이터 수집 후
 - [~] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) 완료 / GitHub Pages 배포는 GitHub 연결 후
+- [x] 우측 상단 동기화 시점 배지 (KST, 36시간 넘게 갱신 없으면 노란색 '갱신 지연')
 
 ### STEP 3. 알림 자동화
 - [ ] 카카오 토큰 최초 발급 스크립트 (브라우저 로그인 1회) + 리프레시 토큰 자동 갱신·저장
@@ -82,12 +83,13 @@ GitHub 저장소 (private)
 - [ ] (나중에 선택) 요약 생성부를 교체 가능하게 분리해 두고, 원하면 Claude API 분석으로 전환
 
 ### STEP 5. 운영 자동화
-- [ ] GitHub Actions cron (일 1회 동기화 / 15분 주기 알림 체크), 시크릿 등록
-- [ ] 실패 시 `sync_log` 기록 + 카톡으로 오류 알림
+- [~] GitHub Actions `.github/workflows/sync-and-deploy.yml` (2026-11-09 작성): 매일 05:00 UTC 전체 동기화 + 30분마다 점검·경기 종료 결과 대기 시 동기화 → 검증 통과 시에만 커밋·Pages 배포. 저장소 생성·시크릿 등록·첫 실행 확인 남음
+- [x] 매 실행 검증 (2026-11-09): ① `scripts/check_privacy.py` 개인정보·비밀값·미허가 파일(허용 경로·`docs/approved_assets.txt` 미디어 승인) — 저장소 전체 + 커밋 직전 + 로컬 pre-commit 훅(`.githooks`) ② `scripts/check_sources.py` API 키·응답 구조 ③ `scripts/validate_data.py` 정합성·football-data↔FPL 교차검증·직전 커밋 DB 비교
+- [~] 문제 시 알림: `scripts/notify_status.py` → GitHub 이슈(소유자 할당 → 이메일·모바일 앱 푸시), 같은 문제 반복 알림 생략, 복구 시 자동 닫힘. 카톡 오류 알림은 STEP 3 카카오 토큰 후 추가
 - [ ] 시즌 전환 자동 처리 (매년 7월 새 시즌 생성, `is_current` 전환)
 
 ## 결정 사항 (2026-11-08 확정)
-1. 호스팅: **GitHub Pages + GitHub Actions** (무료, 정적)
+1. 호스팅: **GitHub Pages + GitHub Actions** (무료, 정적). 무료 계정은 private 저장소 Pages 불가 → **public 저장소**로 결정 (2026-11-09). 비밀값은 Actions Secrets 에만, 커밋 전 자동 검사로 차단
 2. 데이터 API: **무료 플랜만 사용**. API-Football 무료가 현재 시즌을 막으면 유료 결제 없이 **football-data + FPL** 로 구성 (PL 외 대회 선수 스탯·상세 이벤트는 제외 또는 football-data 범위 내에서만 표시). API-Football은 접근 가능한 범위에서 보조로만 사용
 3. 폰 알람: **Google 캘린더 API** (알림 1일 전·1시간 전)
 4. 경기 분석: **Claude API 미사용** (Pro 구독과 API는 별도 과금) → 무료 템플릿 요약. 추후 전환 가능하도록 구조만 분리

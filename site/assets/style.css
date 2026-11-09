@@ -31,6 +31,17 @@ img { max-width: 100%; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 
+/* ---------- top bar (동기화 시점) ---------- */
+.topbar { background: #000; color: #bdbdbd; font-size: 12px; }
+.topbar-inner { display: flex; justify-content: flex-end; align-items: center; min-height: 28px; }
+.sync-badge { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: default; }
+.sync-badge b { color: #fff; font-weight: 700; }
+.sync-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.2); }
+.sync-badge.stale .dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(251,225,34,.2); }
+.sync-badge.stale { color: var(--gold); }
+.sync-badge.none .dot { background: #777; box-shadow: none; }
+@media (max-width: 420px) { .sync-badge .long { display: none; } }
+
 /* ---------- header ---------- */
 .site-header {
   position: sticky; top: 0; z-index: 10;

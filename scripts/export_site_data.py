@@ -74,6 +74,9 @@ def main() -> None:
             SELECT source, job, MAX(finished_utc) AS finished_utc FROM sync_log
             WHERE status='ok' GROUP BY source, job"""),
     }
+    # 화면 우측 상단 표시용: 모든 수집 작업 중 가장 최근 성공 완료 시각
+    data["synced_utc"] = max((s["finished_utc"] for s in data["last_sync"] if s["finished_utc"]),
+                             default=None)
     for comp in ("PL", "UCL"):
         data["tables"][comp] = rows(con, """
             SELECT l.position, l.team_name AS team, t.tla, t.crest_url AS crest, l.played, l.won, l.drawn,

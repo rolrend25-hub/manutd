@@ -1,18 +1,28 @@
 name: Sync data & deploy site
 
+# 매 실행 순서
+#   1) 개인정보·비밀값 검사 (저장소 전체)      ← 항상
+#   2) API 사전 점검 (키 유효성·응답 구조)      ← 항상
+#   3) 동기화 필요 여부 판단 → ETL → 내보내기
+#   4) 데이터 검증 (정합성·교차검증·직전 버전 비교)
+#   5) 개인정보·비밀값 검사 (커밋 직전 staged)
+#   6) 커밋·푸시 → Pages 배포
+#   7) 알림: 문제 있으면 GitHub 이슈(소유자 할당 → 이메일·모바일 푸시), 복구되면 자동 닫힘
+# 1·2·4·5 중 하나라도 실패하면 커밋·배포하지 않음.
+
 on:
   schedule:
     - cron: "0 5 * * *"      # 매일 05:00 UTC (KST 14:00) 전체 동기화
-    - cron: "*/30 * * * *"   # 30분마다: 경기 종료 결과 대기 중일 때만 동기화
-  workflow_dispatch:          # Actions 탭에서 수동 실행
+    - cron: "*/30 * * * *"   # 30분마다: 점검 + 경기 종료 결과 대기 중일 때만 동기화
+  workflow_dispatch:
   push:
     branches: [main]
-    paths: ["site/**", "etl/**", "scripts/**", ".github/workflows/**"]
 
 permissions:
   contents: write
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: sync-and-deploy
@@ -21,14 +31,37 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash   # 명시해야 pipefail 적용 (| tee 뒤에서도 실패 감지)
     outputs:
-      run: ${{ steps.gate.outputs.run }}
+      deploy: ${{ steps.result.outputs.deploy }}
+    env:
+      PYTHONIOENCODING: utf-8
+      REPORT_DIR: ${{ runner.temp }}/reports
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: 준비
+        run: mkdir -p "$REPORT_DIR"
+
+      - name: 1. 개인정보·비밀값 검사 (저장소 전체)
+        id: privacy
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+        run: python scripts/check_privacy.py | tee "$REPORT_DIR/1_privacy.txt"
+
+      - name: 2. API 사전 점검
+        id: sources
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+        run: python scripts/check_sources.py | tee "$REPORT_DIR/2_sources.txt"
 
       - name: 동기화 필요 여부 판단
         id: gate
@@ -36,30 +69,37 @@ jobs:
           EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: python scripts/sync_needed.py
 
-      - name: 패키지 설치
-        if: steps.gate.outputs.run == 'true'
-        run: pip install -r requirements.txt
-
-      - name: ETL (일정·결과 → 순위 → 선수)
+      - name: 3. 데이터 수집(ETL) + 내보내기
+        id: etl
         if: steps.gate.outputs.run == 'true'
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
-          PYTHONIOENCODING: utf-8
         run: |
-          python etl/fetch_fixtures.py
-          python etl/fetch_standings.py
-          python etl/fetch_players.py
+          pip install -q -r requirements.txt
+          git show HEAD:data/manutd.db > "$RUNNER_TEMP/baseline.db" || true
+          { python etl/fetch_fixtures.py && python etl/fetch_standings.py && python etl/fetch_players.py \
+            && python scripts/export_site_data.py; } 2>&1 | tee "$RUNNER_TEMP/etl.log"
 
-      - name: 사이트 데이터 내보내기
-        if: steps.gate.outputs.run == 'true'
-        run: python scripts/export_site_data.py
+      - name: 4. 데이터 검증
+        id: validate
+        if: steps.etl.outcome == 'success'
+        run: python scripts/validate_data.py --baseline "$RUNNER_TEMP/baseline.db" | tee "$REPORT_DIR/4_validate.txt"
 
-      - name: 변경분 커밋
-        if: steps.gate.outputs.run == 'true'
+      - name: 5. 개인정보·비밀값 검사 (커밋 직전)
+        id: staged
+        if: steps.validate.outcome == 'success'
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+        run: |
+          git add data/manutd.db site/data
+          python scripts/check_privacy.py --staged | tee "$REPORT_DIR/5_staged.txt"
+
+      - name: 6. 커밋·푸시
+        id: commit
+        if: steps.staged.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/manutd.db site/data
           if git diff --cached --quiet; then
             echo "변경 없음"
           else
@@ -67,15 +107,44 @@ jobs:
             git push
           fi
 
+      - name: 배포 여부 결정
+        id: result
+        if: always()
+        run: |
+          # 검사·검증을 모두 통과했을 때만 배포 (동기화했거나 코드 push 인 경우)
+          if [ "${{ steps.privacy.outcome }}" = "success" ] && [ "${{ steps.sources.outcome }}" = "success" ] \
+             && { [ "${{ steps.commit.outcome }}" = "success" ] || \
+                  { [ "${{ github.event_name }}" = "push" ] && [ "${{ steps.gate.outputs.run }}" != "true" ]; }; }; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Pages 아티팩트 업로드
-        if: steps.gate.outputs.run == 'true'
+        if: steps.result.outputs.deploy == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
+      - name: 7. 알림 (문제 시 이슈 생성 / 복구 시 닫기)
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUT_PRIVACY: ${{ steps.privacy.outcome }}
+          OUT_SOURCES: ${{ steps.sources.outcome }}
+          OUT_ETL: ${{ steps.etl.outcome }}
+          OUT_VALIDATE: ${{ steps.validate.outcome }}
+          OUT_STAGED: ${{ steps.staged.outcome }}
+          OUT_COMMIT: ${{ steps.commit.outcome }}
+        run: |
+          if [ "${{ steps.etl.outcome }}" = "failure" ]; then
+            { echo "✗ ETL 실패 (마지막 로그):"; tail -n 15 "$RUNNER_TEMP/etl.log" | sed 's/^/✗   /'; } > "$REPORT_DIR/3_etl.txt"
+          fi
+          python scripts/notify_status.py
+
   deploy:
     needs: sync
-    if: needs.sync.outputs.run == 'true'
+    if: needs.sync.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
