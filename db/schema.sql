@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS managers (
     start_date  TEXT,
     end_date    TEXT,              -- NULL = 현직
     is_caretaker INTEGER DEFAULT 0,
-    note        TEXT
+    note        TEXT,
+    note_en     TEXT               -- 웹페이지 영문 본문용
 );
 
 -- ---------------------------------------------------------------------

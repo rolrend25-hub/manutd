@@ -47,7 +47,9 @@ def main() -> None:
                              "final_opponent, final_score, note FROM honours ORDER BY season"),
         "honours_count": rows(con, "SELECT competition_code AS code, competition_name AS name, titles "
                                    "FROM v_honours_count"),
-        "managers": rows(con, "SELECT name, name_ko, nationality, start_date, end_date, is_caretaker, note "
+        # 맨유 공식 엠블럼: 저장소에 파일로 올리지 않고 football-data 서버 이미지를 링크만 함
+        "mu_crest": (con.execute("SELECT crest_url FROM teams WHERE team_fd_id = 66").fetchone() or [None])[0],
+        "managers": rows(con, "SELECT name, name_ko, nationality, start_date, end_date, is_caretaker, note, note_en "
                               "FROM managers ORDER BY start_date"),
         "timeline": rows(con, "SELECT year, title, title_ko, body_ko, category FROM history_timeline "
                               "ORDER BY year, sort_order"),

@@ -141,6 +141,17 @@ INSERT INTO managers (name, name_ko, nationality, start_date, end_date, is_caret
  ('Erik ten Hag','에릭 텐하흐','Netherlands','2022-05','2024-10',0,'2023 리그컵, 2024 FA컵'),
  ('Ruben Amorim','후벵 아모링','Portugal','2024-11',NULL,0,'end_date: 현 상태 확인 후 갱신 필요');
 
+-- 감독 영문 비고 (웹 본문용)
+UPDATE managers SET note_en='First league title' WHERE name='Ernest Mangnall';
+UPDATE managers SET note_en='Busby Babes, 1968 European Cup (returned 1970-71)' WHERE name='Matt Busby';
+UPDATE managers SET note_en='1977 FA Cup' WHERE name='Tommy Docherty';
+UPDATE managers SET note_en='Two FA Cups' WHERE name='Ron Atkinson';
+UPDATE managers SET note_en='13 league titles, 2 Champions Leagues' WHERE name='Alex Ferguson';
+UPDATE managers SET note_en='2016 FA Cup' WHERE name='Louis van Gaal';
+UPDATE managers SET note_en='2017 League Cup & Europa League' WHERE name='José Mourinho';
+UPDATE managers SET note_en='Interim manager' WHERE name='Ralf Rangnick';
+UPDATE managers SET note_en='2023 League Cup, 2024 FA Cup' WHERE name='Erik ten Hag';
+
 -- 역사 타임라인 ------------------------------------------------------------
 INSERT INTO history_timeline (year, date, title, title_ko, category, sort_order) VALUES
  (1878, NULL,         'Newton Heath LYR F.C. founded',        '뉴턴 히스 LYR FC 창단',                 'founding', 1),
