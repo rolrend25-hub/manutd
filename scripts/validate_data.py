@@ -139,6 +139,31 @@ def check_mu_cross(con, season):
             err(f"{tag}: 출전 시간 {maxmin}분 비정상")
 
 
+def check_events(con, season):
+    """경기 상세(FPL 이벤트) 골 수 = 스코어 (자책골 포함) 교차 검증 + 요약 존재 여부."""
+    for (mid, ko, opp, mu, op, n, mu_g, op_g, bad) in q(con, """
+            SELECT m.id, m.kickoff_utc, m.opponent_name, m.mu_score, m.opp_score, COUNT(e.id),
+                   SUM((e.team_side='MU' AND e.event_type='goal') OR (e.team_side='OPP' AND e.event_type='own_goal')),
+                   SUM((e.team_side='OPP' AND e.event_type='goal') OR (e.team_side='MU' AND e.event_type='own_goal')),
+                   SUM(e.event_type NOT IN ('goal','own_goal','assist','missed_penalty','penalty_saved',
+                                            'yellow','red','bonus'))
+            FROM matches m LEFT JOIN match_events e ON e.match_id = m.id
+            WHERE m.season=? AND m.competition_code='PL' AND m.status='FINISHED' AND m.mu_score IS NOT NULL
+            GROUP BY m.id""", (season,)):
+        tag = f"{ko[:10]} PL vs {opp}"
+        if n == 0:
+            warn(f"{tag}: 경기 상세(득점·카드) 없음 (FPL 반영 지연 가능)")
+            continue
+        if (mu_g or 0, op_g or 0) != (mu, op):
+            err(f"{tag}: 상세 득점 {mu_g or 0}-{op_g or 0} ≠ 스코어 {mu}-{op} (FPL↔football-data 불일치)")
+        if bad:
+            err(f"{tag}: 알 수 없는 이벤트 종류 {bad}건")
+    for (ko, opp) in q(con, """SELECT m.kickoff_utc, m.opponent_name FROM matches m
+                              LEFT JOIN match_analyses a ON a.match_id = m.id
+                              WHERE m.season=? AND m.status='FINISHED' AND a.id IS NULL""", (season,)):
+        warn(f"{ko[:10]} vs {opp}: 경기 요약 없음")
+
+
 def check_players(con, season):
     n = q(con, "SELECT COUNT(*) FROM squad_memberships WHERE season=? AND status='active'", (season,))[0][0]
     if not 20 <= n <= 45:
@@ -200,7 +225,8 @@ def check_export(con, season):
     except (OSError, ValueError) as e:
         err(f"사이트 데이터 파일 읽기 실패: {e}")
         return
-    for k in ("generated_utc", "synced_utc", "season", "matches", "tables", "players", "last_sync"):
+    for k in ("generated_utc", "synced_utc", "season", "matches", "tables", "players", "last_sync",
+              "match_details", "mu_crest"):
         if k not in j:
             err(f"data.json 에 '{k}' 없음")
     if j.get("season") != season:
@@ -230,6 +256,7 @@ def main() -> int:
         check_matches(con, season)
         check_tables(con, season)
         check_mu_cross(con, season)
+        check_events(con, season)
         check_players(con, season)
         check_sync_log(con)
         if base and Path(base).exists() and Path(base).stat().st_size > 0:

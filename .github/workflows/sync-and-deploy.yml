@@ -3,7 +3,7 @@ name: Sync data & deploy site
 # 매 실행 순서
 #   1) 개인정보·비밀값 검사 (저장소 전체)      ← 항상
 #   2) API 사전 점검 (키 유효성·응답 구조)      ← 항상
-#   3) 동기화 필요 여부 판단 → ETL → 내보내기
+#   3) 동기화 필요 여부 판단 → ETL(일정·순위·선수·경기 상세) → 경기 요약 → 내보내기
 #   4) 데이터 검증 (정합성·교차검증·직전 버전 비교)
 #   5) 개인정보·비밀값 검사 (커밋 직전 staged)
 #   6) 커밋·푸시 → Pages 배포
@@ -92,6 +92,7 @@ jobs:
           pip install -q -r requirements.txt
           git show HEAD:data/manutd.db > "$RUNNER_TEMP/baseline.db" || true
           { python etl/fetch_fixtures.py && python etl/fetch_standings.py && python etl/fetch_players.py \
+            && python etl/fetch_match_details.py && python scripts/summarize_match.py \
             && python scripts/export_site_data.py; } 2>&1 | tee "$RUNNER_TEMP/etl.log"
 
       - name: 4. 데이터 검증

@@ -76,6 +76,18 @@ def main() -> None:
             SELECT source, job, MAX(finished_utc) AS finished_utc FROM sync_log
             WHERE status='ok' GROUP BY source, job"""),
     }
+    # 경기 상세 (#match/<id>): 이벤트 + 요약. 키는 matches.id (JSON 이라 문자열)
+    details = {}
+    for r in rows(con, """SELECT e.match_id, e.team_side AS side, e.event_type AS type, e.player_name AS player,
+                                 e.detail FROM match_events e JOIN matches m ON m.id = e.match_id
+                          WHERE m.season = ? ORDER BY e.match_id, e.id""", (season,)):
+        details.setdefault(str(r.pop("match_id")), {"events": []})["events"].append(r)
+    for r in rows(con, """SELECT a.match_id, a.analysis_md AS summary, a.player_of_match AS potm, a.model
+                          FROM match_analyses a JOIN matches m ON m.id = a.match_id WHERE m.season = ?""",
+                  (season,)):
+        details.setdefault(str(r.pop("match_id")), {"events": []}).update(r)
+    data["match_details"] = details
+
     # 화면 우측 상단 표시용: 모든 수집 작업 중 가장 최근 성공 완료 시각
     data["synced_utc"] = max((s["finished_utc"] for s in data["last_sync"] if s["finished_utc"]),
                              default=None)

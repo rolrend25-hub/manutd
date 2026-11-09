@@ -30,6 +30,11 @@ def decide() -> tuple[bool, str]:
         f"WHERE kickoff_utc BETWEEN ? AND ? AND status NOT IN ({','.join('?' * len(DONE))})",
         (lo, hi, *DONE),
     ).fetchall()
+    # 결과는 들어왔지만 FPL 경기 상세(보너스 등)가 아직 확정 안 된 PL 경기
+    rows += con.execute(
+        "SELECT kickoff_utc, competition_code, opponent_name, 'details pending' FROM matches "
+        "WHERE kickoff_utc BETWEEN ? AND ? AND competition_code='PL' AND status='FINISHED' "
+        "AND COALESCE(details_synced, 0) = 0", (lo, hi)).fetchall()
     con.close()
     if rows:
         return True, "결과 대기 경기: " + ", ".join(f"{k} {c} vs {o} [{s}]" for k, c, o, s in rows)

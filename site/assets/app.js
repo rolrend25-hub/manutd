@@ -56,7 +56,7 @@
     const done = m.status === "FINISHED";
     const live = m.status === "IN_PLAY" || m.status === "PAUSED";
     const right = done
-      ? `<div class="score">${scoreText(m)} ${chip(m.result)}</div>`
+      ? `<a class="score score-link" href="#match/${m.id}" title="Match details">${scoreText(m)} ${chip(m.result)}<span class="more">Details ›</span></a>`
       : `<div class="score"><div class="tbd">${m.status === "POSTPONED" ? "Postponed" : m.kickoff_confirmed ? `UK ${hm(m.kickoff_utc, UK)}` : "TBC"}<br>${live ? "<b style='color:var(--red)'>LIVE</b>" : ""}</div></div>`;
     return `<li class="match">
       <div class="when"><b>${shortDate(m.kickoff_utc, KST)}</b><span>KST ${hm(m.kickoff_utc, KST)}</span></div>
@@ -286,13 +286,69 @@
       <p class="small muted" style="margin-top:10px">* Detailed figures for past seasons (W/D/L, points) will be filled in by a backfill script. Pre-1992 records will be added later.</p></div>`;
   }
 
+  // ----- 경기 상세 (#match/<id>) -----
+  const EV_ROWS = [["goal", "⚽", "Goals"], ["own_goal", "⚽", "Own goals"], ["assist", "🅰️", "Assists"],
+    ["missed_penalty", "❌", "Penalties missed"], ["penalty_saved", "🧤", "Penalties saved"],
+    ["yellow", "🟨", "Yellow cards"], ["red", "🟥", "Red cards"]];
+  const grouped = (list) => {
+    const c = new Map();
+    for (const n of list) c.set(n, (c.get(n) || 0) + 1);
+    return [...c].map(([n, k]) => esc(n) + (k > 1 ? ` <span class="x">×${k}</span>` : "")).join("<br>");
+  };
+  function pageMatch(id) {
+    const m = matches.find((x) => String(x.id) === String(id));
+    if (!m) return `${title("경기 상세")}<div class="card empty"><b>Match not found</b><a href="#fixtures">Back to fixtures</a></div>`;
+    const det = (D.match_details || {})[String(m.id)] || { events: [] };
+    const ev = det.events || [];
+    const home = m.home_away !== "A";
+    const L = home ? "MU" : "OPP", R = home ? "OPP" : "MU";
+    const teamName = (side) => (side === "MU" ? "Man United" : m.opponent);
+    const haOf = (side) => ((side === "MU") === home ? "Home" : "Away");
+    const crest = (side) => (side === "MU" ? muCrest("crest") : m.opponent_crest ? `<img class="crest" src="${esc(m.opponent_crest)}" alt="">` : "");
+    const done = m.status === "FINISHED";
+    const names = (side, type) => ev.filter((e) => e.side === side && e.type === type).map((e) => e.player);
+    const rows = EV_ROWS.filter(([t]) => ev.some((e) => e.type === t)).map(([t, ic, label]) => `
+      <tr><td class="ev-l">${grouped(names(L, t)) || "–"}</td><th><span class="ic">${ic}</span>${label}</th><td class="ev-r">${grouped(names(R, t)) || "–"}</td></tr>`).join("");
+    const bonus = ev.filter((e) => e.type === "bonus").sort((a, b) => b.detail - a.detail);
+    const md = m.matchday ? (m.comp === "PL" ? ` · Matchweek ${m.matchday}` : ` · Matchday ${m.matchday}`) : "";
+    const idx = finished.findIndex((x) => x.id === m.id);
+    const prev = idx > 0 ? finished[idx - 1] : null, next = idx >= 0 ? finished[idx + 1] : null;
+    const emptyMsg = !done ? "This match has not been played yet."
+      : m.comp === "PL" ? "Match details will appear after the next data sync."
+      : "Scorer and card details are not available for this competition on the free data plan.";
+    return `${title("경기 상세")}
+      <p class="page-sub"><a href="javascript:history.back()" class="back">← Back</a> · ${esc(compEn(m.comp))}${md}</p>
+      <section class="board">
+        <div class="board-team">${crest(L)}<b>${esc(teamName(L))}</b><span>${haOf(L)}</span></div>
+        <div class="board-score">${done ? scoreText(m) : "vs"}${done ? `<div>${chip(m.result)}</div>` : ""}</div>
+        <div class="board-team">${crest(R)}<b>${esc(teamName(R))}</b><span>${haOf(R)}</span></div>
+        <div class="board-meta">${dateTime(m.kickoff_utc, KST)} KST · ${dateTime(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}${m.venue ? " · " + esc(m.venue) : ""}</div>
+      </section>
+      <div class="grid">
+        <div class="card span-8"><h2>경기 기록</h2>
+          ${rows ? `<table class="events"><thead><tr><th class="ev-l">${esc(teamName(L))}</th><th></th><th class="ev-r">${esc(teamName(R))}</th></tr></thead><tbody>${rows}</tbody></table>
+            <p class="small muted" style="margin:10px 0 0">Source: Fantasy Premier League match stats. Goal times are not available.</p>`
+          : `<p class="muted">${emptyMsg}</p>`}
+        </div>
+        <div class="card span-4"><h2>최고 활약</h2>
+          ${bonus.length ? `<ul class="bonus">${bonus.map((b) => `<li><b>${esc(b.detail)}</b><span>${esc(b.player)}${b.side === "MU" ? "" : ` <small class="muted">(${esc(m.opponent)})</small>`}</span></li>`).join("")}</ul>
+            <p class="small muted" style="margin:10px 0 0">FPL bonus points (3 = best in the match).${det.potm ? ` United's best: <b>${esc(det.potm)}</b>.` : ""}</p>` : `<p class="muted">Not available.</p>`}
+        </div>
+        <div class="card span-12"><h2>경기 요약</h2>
+          ${det.summary ? `<p class="summary">${esc(det.summary)}</p><p class="small muted" style="margin:8px 0 0">Automatically generated from match data (${esc(det.model || "template")}).</p>` : `<p class="muted">${done ? "Summary will be generated after the next data sync." : "Available after full time."}</p>`}
+        </div>
+      </div>
+      <div class="pager">${prev ? `<a href="#match/${prev.id}">← vs ${esc(prev.opponent)}</a>` : "<span></span>"}${next ? `<a href="#match/${next.id}">vs ${esc(next.opponent)} →</a>` : "<span></span>"}</div>`;
+  }
+
   // ---------- router ----------
-  const PAGES = { home: pageHome, fixtures: pageFixtures, table: pageTable, players: pagePlayers, transfers: pageTransfers, history: pageHistory, records: pageRecords };
+  const PAGES = { home: pageHome, fixtures: pageFixtures, table: pageTable, players: pagePlayers, transfers: pageTransfers, history: pageHistory, records: pageRecords, match: pageMatch };
   function render() {
-    const page = (location.hash.slice(1) || "home").split("/")[0];
+    const [page, arg] = (location.hash.slice(1) || "home").split("/");
     const fn = PAGES[page] || pageHome;
-    app.innerHTML = fn();
-    document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.page === (PAGES[page] ? page : "home")));
+    app.innerHTML = fn(arg);
+    const navPage = page === "match" ? "fixtures" : PAGES[page] ? page : "home";
+    document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("active", a.dataset.page === navPage));
     document.querySelector(".nav").classList.remove("open");
     tickCountdown();
   }

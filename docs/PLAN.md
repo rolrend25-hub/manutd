@@ -58,7 +58,7 @@ GitHub 저장소 (private)
 - [x] `etl/fetch_fixtures.py` — 일정·결과 (football-data) → `matches`, `teams` (2026-11-09 완료, 46경기 적재). 무료 플랜은 **PL·챔스만** 제공 → FA컵·EFL컵 경기는 별도 보완 필요. 공용 함수는 `etl/common.py`
 - [x] `etl/fetch_standings.py` — PL·챔스 리그 페이즈 전체 순위표 → `league_table`(신규 테이블), 맨유 행 → `season_standings` (2026-11-09 완료)
 - [x] `etl/fetch_players.py` — 스쿼드 34명·PL 시즌 합계·경기별 기록(출전시간·골·도움·카드·태클)·부상/징계 → `players`, `squad_memberships`, `player_season_stats`, `player_match_stats`, `player_availability`(신규), `matches.match_fpl_id` 연결 (2026-11-09 완료). 맨유 경기만 집계. 웹 '선수' 페이지 반영
-- [ ] `etl/fetch_match_details.py` — PL 종료 경기 득점·도움·카드 이벤트(분 단위 X, FPL `fixtures` stats) → `match_events`. (`player_match_stats` 는 fetch_players 에서 이미 수집) PL 외 대회는 스코어만
+- [x] `etl/fetch_match_details.py` (2026-11-09) — PL 종료 경기 양 팀 득점·도움·자책골·PK·카드·FPL 보너스 → `match_events` (분 정보 없음). `details_synced` 1=FPL 확정. 검증: 상세 골 수 = 스코어. 챔스 등 PL 외 대회는 무료 데이터에 상세 없음 → 스코어만
 - [ ] `etl/fetch_transfers.py` — 무료 API 없음 → FPL 신규/제외 선수 감지 + 수동 입력(CSV)으로 `transfers`
 - [ ] (선택) API-Football 무료로 2022-23~2024-25 시즌 라인업·이벤트 백필
 - [ ] `etl/backfill_history.py` — 1886~1992 과거 시즌 순위 1회 수집
@@ -69,6 +69,8 @@ GitHub 저장소 (private)
 - [ ] 로고·올드 트래포드 이미지 기반 헤더 (초안은 'MU' 텍스트 마크 + CSS 그라데이션으로 대체 중)
 - [~] 페이지 초안 `site/index.html` + `site/assets/app.js`: 홈(카운트다운·KST/영국시간·최근결과·다가오는 경기) / 일정·결과(대회 필터) / 순위(PL·UCL) / 역사(우승·연표·감독) / 시즌 기록 완료. 선수·이적·경기 분석은 데이터 수집 후
 - [x] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) + GitHub Pages 자동 배포
+- [x] 경기 상세 페이지 `#match/<id>` (2026-11-09): 스코어 클릭 → 득점·도움·카드·최고 활약·경기 요약
+- [x] 공식 엠블럼(football-data 이미지 링크, 저장소 미업로드)·헤드라인 한글/본문 영문 (2026-11-09)
 - [x] 우측 상단 동기화 시점 배지 (KST, 36시간 넘게 갱신 없으면 노란색 '갱신 지연')
 
 ### STEP 3. 알림 자동화
@@ -78,7 +80,7 @@ GitHub 저장소 (private)
 - [ ] 킥오프 시간 변경·연기 감지 시 캘린더 수정 + 카톡 안내
 
 ### STEP 4. 경기 결과 요약 + 카톡 전송 (무료 템플릿 방식)
-- [ ] 경기 종료 감지 → 상세 데이터 수집 → **규칙 기반 한국어 템플릿 요약** 생성 (스코어·득점자/도움·카드·FPL 보너스 상위 선수·순위 변동·다음 경기) → `match_analyses` (`model` 컬럼에 `template-v1` 기록)
+- [x] (2026-11-09 `scripts/summarize_match.py`, 웹은 영문 `analysis_md` + 카톡용 한글 `summary_ko`) 경기 종료 감지 → 상세 데이터 수집 → **규칙 기반 템플릿 요약** 생성 (스코어·득점자/도움·카드·FPL 보너스 상위 선수·순위 변동·다음 경기) → `match_analyses` (`model` 컬럼에 `template-v1` 기록)
 - [ ] 카톡 요약 + 웹 경기 페이지 링크 전송
 - [ ] (나중에 선택) 요약 생성부를 교체 가능하게 분리해 두고, 원하면 Claude API 분석으로 전환
 
