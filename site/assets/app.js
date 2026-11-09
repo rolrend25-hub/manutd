@@ -272,18 +272,34 @@
     return /[가-힣]/.test(s) ? "" : s;
   };
 
+  let recordsEra = "PL";
+  const ERAS = {
+    PL: ["Premier League era", (r) => r.season >= "1992"],
+    POST: ["1946–1992", (r) => r.season >= "1946" && r.season < "1992"],
+    PRE: ["1888–1939", (r) => r.season < "1946"],
+    ALL: ["All seasons", () => true],
+  };
+  const DIV_SHORT = { PL: "PL", FL1: "Div 1", FL2: "Div 2", FALL: "Alliance", COMB: "Combination" };
+  const cupTxt = (s) => (!s ? "–" : s === "Winners" ? "🏆 Winners" : esc(s));
   function pageRecords() {
-    const rows = D.seasons.filter((s) => s.comp === "PL").slice().reverse();
-    const cls = (p) => (p === 1 ? "p1" : p <= 4 ? "top4" : p >= 15 ? "low" : "");
-    const titles = rows.filter((r) => r.position === 1 && r.is_final).length;
-    return `${title("시즌별 기록")}<p class="page-sub">Since the Premier League began (1992-93) · ${titles} Premier League titles</p>
+    const all = D.seasons.slice().reverse();
+    const rows = all.filter(ERAS[recordsEra][1]);
+    const top = (r) => r.comp === "PL" || r.comp === "FL1";
+    const cls = (r) => (r.position === 1 && top(r) ? "p1" : top(r) && r.position <= 4 ? "top4" : top(r) && r.position >= 15 ? "low" : "");
+    const leagueTitles = all.filter((r) => r.position === 1 && r.is_final && top(r)).length;
+    const europe = (r) => (r.is_final ? [r.europe_competition, r.europe_result].filter(Boolean).join(" – ") : europeEn(r.europe_result));
+    const fromWiki = all.some((r) => (r.source || "").startsWith("wikipedia"));
+    return `${title("시즌별 기록")}<p class="page-sub">${all.length} seasons since ${all.length ? esc(all[all.length - 1].season) : "-"} · ${leagueTitles} league titles</p>
+      <div class="filters">${Object.entries(ERAS).map(([k, [label]]) => `<button data-era="${k}" class="${k === recordsEra ? "on" : ""}">${label}</button>`).join("")}</div>
       <div class="card"><div class="table-wrap"><table class="data">
-        <thead><tr><th class="l">Season</th><th class="l">Pos</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>Pts</th><th class="l">Notes</th></tr></thead>
-        <tbody>${rows.map((r) => `<tr class="${r.is_final ? "" : "mu"}"><td class="l">${esc(r.season)}</td><td class="l"><span class="pos ${cls(r.position)}">${r.position ?? "-"}</span></td>
+        <thead><tr><th class="l">Season</th><th class="l">Div</th><th class="l">Pos</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>Pts</th><th class="l">FA Cup</th><th class="l">League Cup</th><th class="l">Europe</th><th class="l">Top scorer</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr class="${r.is_final ? "" : "mu"}"><td class="l">${esc(r.season)}</td><td class="l small">${esc(DIV_SHORT[r.comp] || r.comp)}</td>
+          <td class="l"><span class="pos ${cls(r)}">${r.position ?? "-"}</span>${r.is_final ? "" : ' <span class="small muted">live</span>'}</td>
           <td>${r.played ?? "–"}</td><td>${r.won ?? "–"}</td><td>${r.drawn ?? "–"}</td><td>${r.lost ?? "–"}</td><td>${r.goals_for ?? "–"}</td><td>${r.goals_against ?? "–"}</td><td class="pts">${r.points ?? "–"}</td>
-          <td class="l small muted">${[r.is_final ? (r.position === 1 ? "🏆 Champions" : "") : "In progress", esc(europeEn(r.europe_result))].filter(Boolean).join(" · ")}</td></tr>`).join("")}</tbody>
+          <td class="l small">${cupTxt(r.fa_cup)}</td><td class="l small">${cupTxt(r.league_cup)}</td><td class="l small muted">${esc(europe(r)) || "–"}</td>
+          <td class="l small">${r.top_scorer ? `${esc(r.top_scorer)} <span class="muted">(${r.top_scorer_goals ?? "?"})</span>` : "–"}</td></tr>`).join("")}</tbody>
       </table></div>
-      <p class="small muted" style="margin-top:10px">* Detailed figures for past seasons (W/D/L, points) will be filled in by a backfill script. Pre-1992 records will be added later.</p></div>`;
+      <p class="small muted" style="margin-top:10px">Div 1 = Football League First Division (top flight before 1992-93), Div 2 = Second Division. Top scorer counts goals in all competitions. No league football 1915–19 and 1939–46 (World Wars).${fromWiki ? ' Historical records: <a href="https://en.wikipedia.org/wiki/List_of_Manchester_United_F.C._seasons" target="_blank" rel="noopener">Wikipedia</a> (CC BY-SA 4.0).' : ""}</p></div>`;
   }
 
   // ----- 경기 상세 (#match/<id>) -----
@@ -357,6 +373,8 @@
     if (f) { fixtureFilter = f.dataset.filter; render(); }
     const t = e.target.closest("[data-table]");
     if (t) { tableComp = t.dataset.table; render(); }
+    const era = e.target.closest("[data-era]");
+    if (era) { recordsEra = era.dataset.era; render(); }
     const pos = e.target.closest("[data-pos]");
     if (pos) { playerPos = pos.dataset.pos; render(); }
     const s = e.target.closest("[data-sort]");

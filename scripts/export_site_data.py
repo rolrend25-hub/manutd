@@ -41,7 +41,9 @@ def main() -> None:
         "tables": {},
         "seasons": rows(con, """
             SELECT season, competition_code AS comp, division, position, played, won, drawn, lost,
-                   goals_for, goals_against, points, europe_competition, europe_result, is_final
+                   goals_for, goals_against, points, europe_competition, europe_result, is_final,
+                   fa_cup_result AS fa_cup, league_cup_result AS league_cup,
+                   top_scorer, top_scorer_goals, source
             FROM season_standings ORDER BY season"""),
         "honours": rows(con, "SELECT competition_code AS code, competition_name AS name, season, "
                              "final_opponent, final_score, note FROM honours ORDER BY season"),
