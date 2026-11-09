@@ -4,6 +4,8 @@
   REMIND_D1       킥오프 24시간 전 (~ 킥오프 3시간 전까지 늦게라도)
   REMIND_H1       킥오프 1시간 전 (실행 주기가 30분이라 90분 전부터 보냄)
   KICKOFF_CHANGE  킥오프 시간 변경·확정·연기 (etl/fetch_fixtures.py 가 notifications 에 대기열로 넣음)
+  RESULT          경기 종료 결과 요약 (STEP 4) — match_analyses.summary_ko + 최고 활약·순위·다음 경기
+                  PL 은 FPL 상세 확정(details_synced=1) 후, 늦어지면 킥오프 6시간 뒤. 최근 2일 경기만
 
 중복 방지: 보낸 기록을 notifications 테이블(match_id, kind, channel 고유)에 남기고 DB 를 커밋.
 킥오프 시간이 미정(kickoff_confirmed=0)인 경기는 리마인드하지 않음.
@@ -27,6 +29,9 @@ WEEKDAY_KO = "월화수목금토일"
 MU = "Man United"
 CHANNEL = "kakao_memo"
 UPCOMING = ("SCHEDULED", "TIMED")
+
+RESULT_LOOKBACK = timedelta(days=2)      # 이보다 오래된 경기 결과는 보내지 않음 (첫 실행 시 몰아 보내기 방지)
+RESULT_FALLBACK = timedelta(hours=6)     # PL 상세 확정이 늦어도 킥오프 후 이 시간이 지나면 발송
 
 # (kind, 킥오프 기준 보내기 시작 시점, 이 시점 이후로는 안 보냄)
 WINDOWS = [
@@ -87,6 +92,32 @@ def change_text(m, old_ref: str | None) -> str:
     return "\n".join(lines)
 
 
+def result_text(con, m) -> str | None:
+    a = con.execute("SELECT summary_ko, player_of_match FROM match_analyses WHERE match_id=?", (m["id"],)).fetchone()
+    if not a or not a["summary_ko"]:
+        return None
+    mark = {"W": "✅ 승리", "D": "➖ 무승부", "L": "❌ 패배"}.get(m["result"], "🏁 경기 종료")
+    lines = [f"{mark} · 경기 종료", *a["summary_ko"].split(" · ")]
+    if a["player_of_match"]:
+        lines.append(f"최고 활약: {a['player_of_match']}")
+    if m["competition_code"] == "PL":
+        r = con.execute("""SELECT l.position, l.points, l.played FROM league_table l JOIN teams t ON t.id=l.team_id
+                           WHERE l.season=? AND l.competition_code='PL' AND t.team_fd_id=66""", (m["season"],)).fetchone()
+        if r:
+            lines.append(f"PL 순위: {r['position']}위 (승점 {r['points']}, {r['played']}경기)")
+    n = con.execute("""SELECT * FROM matches WHERE kickoff_utc > ? AND status IN ('SCHEDULED','TIMED')
+                       ORDER BY kickoff_utc LIMIT 1""", (m["kickoff_utc"],)).fetchone()
+    if n:
+        when = fmt(parse(n["kickoff_utc"]), SEOUL) if n["kickoff_confirmed"] else "시간 미정"
+        lines.append(f"다음: vs {n['opponent_name']} ({'홈' if n['home_away'] == 'H' else '원정'}) {when}")
+    text = "\n".join(lines)
+    while len(text) > kakao.TEXT_LIMIT and len(lines) > 2:  # 길면 뒤쪽 부가 정보부터 뺌 (카드 → 순위 …)
+        drop = next((i for i, ln in enumerate(lines) if ln.startswith("카드:")), None)
+        lines.pop(drop if drop is not None else -1)
+        text = "\n".join(lines)
+    return text
+
+
 def due_messages(con, now: datetime) -> list[tuple]:
     """[(match_row, kind, text, old_ref)] — 지금 보내야 할 것."""
     rows = con.execute(
@@ -107,7 +138,14 @@ def due_messages(con, now: datetime) -> list[tuple]:
                 out.append((m, "KICKOFF_CHANGE", change_text(m, ch["external_ref"]), ch["external_ref"]))
             else:
                 out.append((m, "KICKOFF_CHANGE", None, ch["external_ref"]))  # skipped
-        # 2) 리마인드
+        # 2) 경기 결과 (STEP 4)
+        if (m["status"] == "FINISHED" and (m["id"], "RESULT") not in sent
+                and now - RESULT_LOOKBACK <= ko <= now
+                and (m["competition_code"] != "PL" or m["details_synced"] or now >= ko + RESULT_FALLBACK)):
+            text = result_text(con, m)
+            if text:
+                out.append((m, "RESULT", text, None))
+        # 3) 리마인드
         if m["status"] not in UPCOMING or not m["kickoff_confirmed"]:
             continue
         for kind, start, stop in WINDOWS:
