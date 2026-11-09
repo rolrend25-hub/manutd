@@ -100,6 +100,7 @@ jobs:
           { python etl/fetch_fixtures.py && python etl/fetch_standings.py && python etl/fetch_players.py \
             && python etl/fetch_match_details.py \
             && { python etl/fetch_cups.py || echo "⚠ FA컵·EFL컵(위키백과) 수집 실패 — 이번 실행은 건너뜀" | tee "$REPORT_DIR/3_cups.txt"; } \
+            && { python etl/fetch_transfers.py || echo "⚠ 이적(위키백과) 수집 실패 — 이번 실행은 건너뜀" | tee "$REPORT_DIR/3_transfers.txt"; } \
             && python scripts/summarize_match.py && python scripts/export_site_data.py; } 2>&1 | tee "$RUNNER_TEMP/etl.log"
 
       - name: 3-1. 카카오톡 알림 (리마인드·일정 변경)

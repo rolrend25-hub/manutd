@@ -34,6 +34,8 @@
     : `<span class="${cls} crest-fallback">MU</span>`;
   const title = (t) => `<h1 class="page-title with-crest">${muCrest("title-crest")}<span>${t}</span></h1>`;
 
+  // 킥오프 시각 미정(위키백과 컵 경기 등)이면 날짜만
+  const koTime = (m, tz) => (m.kickoff_confirmed ? dateTime(m.kickoff_utc, tz) : `${shortDate(m.kickoff_utc, tz)} · TBC`);
   const matches = D.matches.slice().sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
   const finished = matches.filter((m) => m.status === "FINISHED");
   const now = Date.now();
@@ -59,7 +61,7 @@
       ? `<a class="score score-link" href="#match/${m.id}" title="Match details">${scoreText(m)} ${chip(m.result)}<span class="more">Details ›</span></a>`
       : `<div class="score"><div class="tbd">${m.status === "POSTPONED" ? "Postponed" : m.kickoff_confirmed ? `UK ${hm(m.kickoff_utc, UK)}` : "TBC"}<br>${live ? "<b style='color:var(--red)'>LIVE</b>" : ""}</div></div>`;
     return `<li class="match">
-      <div class="when"><b>${shortDate(m.kickoff_utc, KST)}</b><span>KST ${hm(m.kickoff_utc, KST)}</span></div>
+      <div class="when"><b>${shortDate(m.kickoff_utc, KST)}</b><span>${m.kickoff_confirmed ? `KST ${hm(m.kickoff_utc, KST)}` : "Time TBC"}</span></div>
       <div class="who">${crestImg(m.opponent_crest, m.opponent)}
         <div style="min-width:0"><div class="opp">vs ${esc(m.opponent)}</div>
         <div class="sub"><span class="badge ${esc(m.comp)}">${esc(compEn(m.comp))}</span><span class="badge ha">${ha(m)}</span>${m.matchday ? `<span class="small muted">${m.comp === "PL" ? "MW" + m.matchday : "MD" + m.matchday}</span>` : ""}</div></div>
@@ -80,8 +82,8 @@
       <div class="versus">${home ? mu : op}<div class="vs">VS</div>${home ? op : mu}</div>
       <div class="countdown" id="countdown" data-kickoff="${esc(m.kickoff_utc)}"></div>
       <div class="times">
-        <div class="time-box"><div class="label">Korea time (KST)</div><div class="val">${dateTime(m.kickoff_utc, KST)}</div></div>
-        <div class="time-box"><div class="label">UK time (${ukZone(m.kickoff_utc)})</div><div class="val">${dateTime(m.kickoff_utc, UK)}</div></div>
+        <div class="time-box"><div class="label">Korea time (KST)</div><div class="val">${koTime(m, KST)}</div></div>
+        <div class="time-box"><div class="label">UK time (${ukZone(m.kickoff_utc)})</div><div class="val">${koTime(m, UK)}</div></div>
       </div>
       <div class="meta">${m.venue ? esc(m.venue) + " · " : ""}${m.kickoff_confirmed ? "" : "Kick-off time TBC · "}${home ? "Home match" : "Away match"}</div>
     </section>`;
@@ -236,10 +238,27 @@
         ${gone.map((p) => `<li class="match" style="grid-template-columns:1fr"><div><b>${esc(pName(p))}</b> <span class="small muted">${p.position}</span><div class="small muted">${esc(p.news)}</div></div></li>`).join("")}</ul></div>` : ""}`;
   }
 
+  let transferSeason = null;
+  const TT_EN = { permanent: "Transfer", free: "Free", release: "Released", loan: "Loan", loan_return: "Loan return", youth_promotion: "Academy" };
   function pageTransfers() {
-    if (!D.transfers.length) return pageEmpty("이적 현황", "Signings · Departures · Loans", "Shown once transfer data collection (etl/fetch_transfers.py) is in place.");
-    return `${title("이적 현황")}<div class="card"><div class="table-wrap"><table class="data"><thead><tr><th class="l">Date</th><th class="l">Player</th><th class="l">Type</th><th class="l">From → To</th><th>Fee</th></tr></thead>
-      <tbody>${D.transfers.map((t) => `<tr><td class="l">${esc(t.transfer_date)}</td><td class="l">${esc(t.player_name)}</td><td class="l">${t.direction === "in" ? "In" : "Out"}</td><td class="l">${esc(t.from_club)} → ${esc(t.to_club)}</td><td>${esc(t.fee_text || "-")}</td></tr>`).join("")}</tbody></table></div></div>`;
+    if (!D.transfers.length) return pageEmpty("이적 현황", "Signings · Departures · Loans", "No transfer data yet.");
+    const seasons = [...new Set(D.transfers.map((t) => t.season).filter(Boolean))].sort().reverse();
+    if (!transferSeason || !seasons.includes(transferSeason)) transferSeason = seasons[0];
+    const list = D.transfers.filter((t) => t.season === transferSeason);
+    const groups = [
+      ["영입", "Signings", list.filter((t) => t.direction === "in" && t.transfer_type !== "loan"), "from_club", "From"],
+      ["임대 영입", "Loans in", list.filter((t) => t.direction === "in" && t.transfer_type === "loan"), "from_club", "From"],
+      ["방출", "Departures", list.filter((t) => t.direction === "out" && t.transfer_type !== "loan"), "to_club", "To"],
+      ["임대 이적", "Loans out", list.filter((t) => t.direction === "out" && t.transfer_type === "loan"), "to_club", "To"],
+    ].filter((g) => g[2].length);
+    const fromWiki = list.some((t) => (t.source || "").startsWith("wikipedia"));
+    return `${title("이적 현황")}<p class="page-sub">${esc(transferSeason)} · ${list.filter((t) => t.direction === "in").length} in · ${list.filter((t) => t.direction === "out").length} out</p>
+      <div class="filters">${seasons.map((s) => `<button data-tseason="${esc(s)}" class="${s === transferSeason ? "on" : ""}">${esc(s)}</button>`).join("")}</div>
+      ${groups.map(([ko, en, rows, clubKey, clubLabel]) => `<div class="card" style="margin-bottom:16px"><h2>${ko} <small>${en} · ${rows.length}</small></h2>
+        <div class="table-wrap"><table class="data"><thead><tr><th class="l">Date</th><th class="l">Pos</th><th class="l">Player</th><th class="l">${clubLabel}</th><th class="l">Type</th><th class="l">Fee / Note</th></tr></thead>
+        <tbody>${rows.slice().sort((a, b) => (a.transfer_date < b.transfer_date ? 1 : -1)).map((t) => `<tr><td class="l small">${esc(t.transfer_date)}</td><td class="l small">${esc(t.position || "")}</td>
+          <td class="l"><b>${esc(t.player_name)}</b></td><td class="l">${esc(t[clubKey] || "-")}</td><td class="l small">${esc(TT_EN[t.transfer_type] || t.transfer_type || "")}</td><td class="l small muted">${esc(t.fee_text || "-")}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}
+      ${fromWiki ? `<p class="small muted">Source: <a href="${esc(list.find((t) => t.source_url)?.source_url || "https://en.wikipedia.org/")}" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0). Fees are usually undisclosed officially.</p>` : ""}`;
   }
 
   const TROPHY_EN = { PL: "League titles", FL1: "League titles", FAC: "FA Cup", ELC: "League Cup", UCL: "European Cup / UCL", UEL: "Europa League", UCWC: "Cup Winners' Cup", USC: "UEFA Super Cup", ICC: "Intercontinental Cup", CWC: "Club World Cup", CS: "Community Shield" };
@@ -322,9 +341,11 @@
     const haOf = (side) => ((side === "MU") === home ? "Home" : "Away");
     const crest = (side) => (side === "MU" ? muCrest("crest") : m.opponent_crest ? `<img class="crest" src="${esc(m.opponent_crest)}" alt="">` : "");
     const done = m.status === "FINISHED";
-    const names = (side, type) => ev.filter((e) => e.side === side && e.type === type).map((e) => e.player);
+    const minute = (e) => (e.minute != null ? ` ${e.minute}${e.extra_minute ? "+" + e.extra_minute : ""}'` : "");
+    const names = (side, type) => ev.filter((e) => e.side === side && e.type === type).map((e) => e.player + minute(e) + (e.detail === "pen" ? " (pen)" : ""));
+    const muOnly = m.comp !== "PL";  // 컵 대회(위키백과)는 맨유 득점자만 기록됨
     const rows = EV_ROWS.filter(([t]) => ev.some((e) => e.type === t)).map(([t, ic, label]) => `
-      <tr><td class="ev-l">${grouped(names(L, t)) || "–"}</td><th><span class="ic">${ic}</span>${label}</th><td class="ev-r">${grouped(names(R, t)) || "–"}</td></tr>`).join("");
+      <tr><td class="ev-l">${grouped(names(L, t)) || "–"}</td><th><span class="ic">${ic}</span>${label}</th><td class="ev-r">${grouped(names(R, t)) || (muOnly && R === "OPP" ? '<span class="muted">n/a</span>' : "–")}</td></tr>`).join("");
     const bonus = ev.filter((e) => e.type === "bonus").sort((a, b) => b.detail - a.detail);
     const md = m.matchday ? (m.comp === "PL" ? ` · Matchweek ${m.matchday}` : ` · Matchday ${m.matchday}`) : "";
     const idx = finished.findIndex((x) => x.id === m.id);
@@ -338,12 +359,14 @@
         <div class="board-team">${crest(L)}<b>${esc(teamName(L))}</b><span>${haOf(L)}</span></div>
         <div class="board-score">${done ? scoreText(m) : "vs"}${done ? `<div>${chip(m.result)}</div>` : ""}</div>
         <div class="board-team">${crest(R)}<b>${esc(teamName(R))}</b><span>${haOf(R)}</span></div>
-        <div class="board-meta">${dateTime(m.kickoff_utc, KST)} KST · ${dateTime(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}${m.venue ? " · " + esc(m.venue) : ""}</div>
+        <div class="board-meta">${m.kickoff_confirmed ? `${dateTime(m.kickoff_utc, KST)} KST · ${dateTime(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}` : `${shortDate(m.kickoff_utc, UK)} · Kick-off time not recorded`}${m.venue ? " · " + esc(m.venue) : ""}</div>
       </section>
       <div class="grid">
         <div class="card span-8"><h2>경기 기록</h2>
           ${rows ? `<table class="events"><thead><tr><th class="ev-l">${esc(teamName(L))}</th><th></th><th class="ev-r">${esc(teamName(R))}</th></tr></thead><tbody>${rows}</tbody></table>
-            <p class="small muted" style="margin:10px 0 0">Source: Fantasy Premier League match stats. Goal times are not available.</p>`
+            <p class="small muted" style="margin:10px 0 0">${muOnly
+              ? 'Source: <a href="https://en.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0). Only United scorers are recorded for this competition.'
+              : "Source: Fantasy Premier League match stats. Goal times are not available."}</p>`
           : `<p class="muted">${emptyMsg}</p>`}
         </div>
         <div class="card span-4"><h2>최고 활약</h2>
@@ -373,6 +396,8 @@
     if (f) { fixtureFilter = f.dataset.filter; render(); }
     const t = e.target.closest("[data-table]");
     if (t) { tableComp = t.dataset.table; render(); }
+    const ts = e.target.closest("[data-tseason]");
+    if (ts) { transferSeason = ts.dataset.tseason; render(); }
     const era = e.target.closest("[data-era]");
     if (era) { recordsEra = era.dataset.era; render(); }
     const pos = e.target.closest("[data-pos]");

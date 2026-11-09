@@ -71,8 +71,8 @@ def main() -> None:
             LEFT JOIN player_availability a ON a.player_id = p.id
             WHERE m.season = ?
             ORDER BY s.goals DESC, s.assists DESC, s.minutes DESC""", (season,)),
-        "transfers": rows(con, "SELECT player_name, direction, transfer_type, from_club, to_club, fee_text, "
-                               "transfer_date, transfer_window, status FROM transfers "
+        "transfers": rows(con, "SELECT player_name, position, direction, transfer_type, from_club, to_club, fee_text, "
+                               "transfer_date, transfer_window, season, status, source, source_url FROM transfers "
                                "ORDER BY transfer_date DESC"),
         "last_sync": rows(con, """
             SELECT source, job, MAX(finished_utc) AS finished_utc FROM sync_log
@@ -81,7 +81,8 @@ def main() -> None:
     # 경기 상세 (#match/<id>): 이벤트 + 요약. 키는 matches.id (JSON 이라 문자열)
     details = {}
     for r in rows(con, """SELECT e.match_id, e.team_side AS side, e.event_type AS type, e.player_name AS player,
-                                 e.detail FROM match_events e JOIN matches m ON m.id = e.match_id
+                                 e.detail, e.minute, e.extra_minute
+                          FROM match_events e JOIN matches m ON m.id = e.match_id
                           WHERE m.season = ? ORDER BY e.match_id, e.id""", (season,)):
         details.setdefault(str(r.pop("match_id")), {"events": []})["events"].append(r)
     for r in rows(con, """SELECT a.match_id, a.analysis_md AS summary, a.player_of_match AS potm, a.model

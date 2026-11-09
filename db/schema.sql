@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS transfers (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     player_id       INTEGER REFERENCES players(id),
     player_name     TEXT NOT NULL,
+    position        TEXT,               -- GK / DF / MF / FW
     direction       TEXT NOT NULL CHECK (direction IN ('in','out')),
     transfer_type   TEXT,               -- permanent / loan / loan_return / free / youth_promotion / release
     from_club       TEXT,

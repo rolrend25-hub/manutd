@@ -55,14 +55,14 @@ GitHub 저장소 (private)
 - [x] `requirements.txt` (google-api-python-client, google-auth, tzdata) 설치
 
 ### STEP 1. 데이터 수집(ETL)
-- [x] `etl/fetch_fixtures.py` — 일정·결과 (football-data) → `matches`, `teams` (2026-11-09 완료, 46경기 적재). 무료 플랜은 **PL·챔스만** 제공 → FA컵·EFL컵 경기는 별도 보완 필요. 공용 함수는 `etl/common.py`
+- [x] `etl/fetch_fixtures.py` — 일정·결과 (football-data) → `matches`, `teams` (2026-11-09 완료, 46경기 적재). 무료 플랜은 **PL·챔스만** 제공 → FA컵·EFL컵·커뮤니티실드는 `etl/fetch_cups.py`(위키백과 시즌 문서 컵 표, 2026-11-09)로 보완: 날짜·상대·스코어·승부차기·맨유 득점자(분). 킥오프 시각 없음 → `kickoff_confirmed=0`(캘린더 종일 일정, 리마인드 없음). 식별 `matches.match_ext_id`. 공용 함수는 `etl/common.py`
 - [x] `etl/fetch_standings.py` — PL·챔스 리그 페이즈 전체 순위표 → `league_table`(신규 테이블), 맨유 행 → `season_standings` (2026-11-09 완료)
 - [x] `etl/fetch_players.py` — 스쿼드 34명·PL 시즌 합계·경기별 기록(출전시간·골·도움·카드·태클)·부상/징계 → `players`, `squad_memberships`, `player_season_stats`, `player_match_stats`, `player_availability`(신규), `matches.match_fpl_id` 연결 (2026-11-09 완료). 맨유 경기만 집계. 웹 '선수' 페이지 반영
 - [x] `etl/fetch_match_details.py` (2026-11-09) — PL 종료 경기 양 팀 득점·도움·자책골·PK·카드·FPL 보너스 → `match_events` (분 정보 없음). `details_synced` 1=FPL 확정. 검증: 상세 골 수 = 스코어. 챔스 등 PL 외 대회는 무료 데이터에 상세 없음 → 스코어만
-- [ ] `etl/fetch_transfers.py` — 무료 API 없음 → FPL 신규/제외 선수 감지 + 수동 입력(CSV)으로 `transfers`
+- [x] (2026-11-09) `etl/fetch_transfers.py` — 위키백과 시즌 문서 Transfers 표(In/Out/Loan) → `transfers` (2026-27 41건, 2025-26 47건). 매 동기화 실행, 위키에서 사라진 행 삭제, 실패해도 전체 동기화는 계속(경고). 웹 '이적' 페이지(시즌별 영입·방출·임대)
 - [ ] (선택) API-Football 무료로 2022-23~2024-25 시즌 라인업·이벤트 백필
-- [ ] `etl/backfill_history.py` — 1886~1992 과거 시즌 순위 1회 수집
-- [ ] 2025-26 시즌 전체 데이터 백필
+- [x] (2026-11-09) `etl/backfill_history.py` — 위키백과 'List of Manchester United F.C. seasons' → 1888-89~2025-26 128시즌 리그 성적·FA컵·리그컵·유럽대회·최다 득점자 (`season_standings`). 검증: W+D+L=경기 수, 승점(1990-91 1점 감점 예외), 1992년 이후 기존 순위 일치. 웹 '시즌 기록' 시대별 필터
+- [x] (2026-11-09) 2025-26 시즌 백필: PL 38경기·순위표(football-data, 위키와 일치 확인) + FA컵·EFL컵(위키). 선수별 경기 기록은 무료 출처 없음(FPL 은 현재 시즌만)
 
 ### STEP 2. 웹페이지
 - [x] (초안 2026-11-09) 디자인: 레드(#DA291C)·블랙·화이트 + 골드/블루 포인트, Anton + Noto Sans KR → `site/assets/style.css`
