@@ -23,9 +23,11 @@ STEPS = [  # (환경변수, 이름)
     ("OUT_PRIVACY", "개인정보·비밀값 검사 (저장소 전체)"),
     ("OUT_SOURCES", "API 사전 점검"),
     ("OUT_ETL", "데이터 수집(ETL)"),
+    ("OUT_KAKAO", "카카오톡 알림 발송"),
     ("OUT_VALIDATE", "데이터 검증"),
     ("OUT_STAGED", "개인정보·비밀값 검사 (커밋 직전)"),
     ("OUT_COMMIT", "커밋·푸시"),
+    ("OUT_CALENDAR", "구글 캘린더 동기화"),
 ]
 
 

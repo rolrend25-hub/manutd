@@ -4,10 +4,12 @@ name: Sync data & deploy site
 #   1) 개인정보·비밀값 검사 (저장소 전체)      ← 항상
 #   2) API 사전 점검 (키 유효성·응답 구조)      ← 항상
 #   3) 동기화 필요 여부 판단 → ETL(일정·순위·선수·경기 상세) → 경기 요약 → 내보내기
-#   4) 데이터 검증 (정합성·교차검증·직전 버전 비교)
+#   3-1) 카카오톡 알림 (전날·1시간 전 리마인드, 일정 변경 안내)  ← 매 실행, 보낸 기록은 DB 에 커밋
+#   4) 데이터 검증 (정합성·교차검증·직전 버전 비교)  ← ETL 을 했거나 카톡을 보낸 경우
 #   5) 개인정보·비밀값 검사 (커밋 직전 staged)
 #   6) 커밋·푸시 → Pages 배포
-#   7) 알림: 문제 있으면 GitHub 이슈(소유자 할당 → 이메일·모바일 푸시), 복구되면 자동 닫힘
+#   7) 구글 캘린더 동기화 (동기화·커밋한 경우만, 저장소 변경 없음)
+#   8) 알림: 문제 있으면 GitHub 이슈(소유자 할당 → 이메일·모바일 푸시), 복구되면 자동 닫힘
 # 1·2·4·5 중 하나라도 실패하면 커밋·배포하지 않음.
 
 on:
@@ -56,11 +58,17 @@ jobs:
         run: |
           echo "REPORT_DIR=$RUNNER_TEMP/reports" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/reports"
+          pip install -q -r requirements.txt
+          git show HEAD:data/manutd.db > "$RUNNER_TEMP/baseline.db" || true
 
       - name: 1. 개인정보·비밀값 검사 (저장소 전체)
         id: privacy
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
         run: python scripts/check_privacy.py | tee "$REPORT_DIR/1_privacy.txt"
 
       - name: 2. API 사전 점검
@@ -89,15 +97,24 @@ jobs:
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
         run: |
-          pip install -q -r requirements.txt
-          git show HEAD:data/manutd.db > "$RUNNER_TEMP/baseline.db" || true
           { python etl/fetch_fixtures.py && python etl/fetch_standings.py && python etl/fetch_players.py \
             && python etl/fetch_match_details.py && python scripts/summarize_match.py \
             && python scripts/export_site_data.py; } 2>&1 | tee "$RUNNER_TEMP/etl.log"
 
+      - name: 3-1. 카카오톡 알림 (리마인드·일정 변경)
+        id: kakao
+        if: ${{ !inputs.test_alert && steps.sources.outcome == 'success' && steps.etl.outcome != 'failure' }}
+        continue-on-error: true   # 실패해도 이미 보낸 기록은 아래에서 커밋 (중복 발송 방지), 실패는 알림 이슈로
+        env:
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          GH_SECRETS_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}   # 새 리프레시 토큰을 Secrets 에 자동 저장
+        run: python notify/send_kakao.py 2>&1 | tee "$REPORT_DIR/3_kakao.txt"
+
       - name: 4. 데이터 검증
         id: validate
-        if: steps.etl.outcome == 'success'
+        if: steps.etl.outcome == 'success' || steps.kakao.outputs.changed == 'true'
         run: python scripts/validate_data.py --baseline "$RUNNER_TEMP/baseline.db" | tee "$REPORT_DIR/4_validate.txt"
 
       - name: 5. 개인정보·비밀값 검사 (커밋 직전)
@@ -105,6 +122,10 @@ jobs:
         if: steps.validate.outcome == 'success'
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
         run: |
           git add data/manutd.db site/data
           python scripts/check_privacy.py --staged | tee "$REPORT_DIR/5_staged.txt"
@@ -121,6 +142,14 @@ jobs:
             git commit -m "data: auto sync $(date -u +%Y-%m-%dT%H:%MZ)"
             git push
           fi
+
+      - name: 7. 구글 캘린더 동기화 (일정·시간 변경·결과)
+        id: calendar
+        if: steps.commit.outcome == 'success'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+        run: python notify/sync_calendar.py 2>&1 | tee "$REPORT_DIR/7_calendar.txt"
 
       - name: 배포 여부 결정
         id: result
@@ -141,16 +170,18 @@ jobs:
         with:
           path: site
 
-      - name: 7. 알림 (문제 시 이슈 생성 / 복구 시 닫기)
+      - name: 8. 알림 (문제 시 이슈 생성 / 복구 시 닫기)
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OUT_PRIVACY: ${{ steps.privacy.outcome }}
           OUT_SOURCES: ${{ steps.testalert.outcome == 'failure' && 'failure' || steps.sources.outcome }}
           OUT_ETL: ${{ steps.etl.outcome }}
+          OUT_KAKAO: ${{ steps.kakao.outcome }}
           OUT_VALIDATE: ${{ steps.validate.outcome }}
           OUT_STAGED: ${{ steps.staged.outcome }}
           OUT_COMMIT: ${{ steps.commit.outcome }}
+          OUT_CALENDAR: ${{ steps.calendar.outcome }}
         run: |
           if [ "${{ steps.etl.outcome }}" = "failure" ]; then
             { echo "✗ ETL 실패 (마지막 로그):"; tail -n 15 "$RUNNER_TEMP/etl.log" | sed 's/^/✗   /'; } > "$REPORT_DIR/3_etl.txt"

@@ -7,7 +7,8 @@
 * football-data 무료 플랜은 PL·챔스(CL) 등 일부 대회만 제공 → FA컵·EFL컵 경기는 들어오지 않음.
 * 무료 플랜은 스코어 반영이 지연될 수 있음 (경기 종료 후 상태가 한동안 TIMED 로 남기도 함).
 * 같은 경기는 match_fd_id 로 덮어쓰기(upsert) → 여러 번 실행해도 안전.
-* 킥오프 시간이 바뀐 경기는 화면에 출력 (STEP 3 캘린더/카톡 수정 알림에 활용 예정).
+* 다가오는 경기의 킥오프 시간 변경·확정·연기는 notifications 에 카톡 안내 대기열(KICKOFF_CHANGE)로 넣음
+  → notify/send_kakao.py 가 발송. 이미 보낸 리마인드는 새 시간 기준으로 다시 보내도록 초기화.
 """
 import argparse
 import sys
@@ -83,7 +84,7 @@ def to_row(m: dict, season: str, opp_id: int) -> dict:
 
 
 def upsert_match(con, row: dict) -> tuple[str, str | None]:
-    """반환: ('new'|'updated'|'same', 이전 킥오프(변경된 경우))."""
+    """반환: ('new'|'updated'|'same', 이전 킥오프(변경된 경우)). 일정 변경 시 카톡 안내 대기열 등록."""
     old = con.execute("SELECT * FROM matches WHERE match_fd_id=?", (row["match_fd_id"],)).fetchone()
     cols = list(row)
     if old is None:
@@ -98,7 +99,36 @@ def upsert_match(con, row: dict) -> tuple[str, str | None]:
         f"UPDATE matches SET {', '.join(f'{c}=?' for c in changed)}, updated_at=? WHERE id=?",
         [row[c] for c in changed] + [utc_now(), old["id"]])
     moved = old["kickoff_utc"] if "kickoff_utc" in changed else None
+    queue_schedule_notice(con, old, row)
     return "updated", moved
+
+
+def queue_schedule_notice(con, old, row: dict) -> None:
+    """다가오는 경기의 킥오프 변경·시간 확정·연기 → notifications(KICKOFF_CHANGE, kakao_memo) 대기열."""
+    now = utc_now()
+    if old["status"] in ("FINISHED", "CANCELLED") or max(old["kickoff_utc"], row["kickoff_utc"]) <= now:
+        return
+    moved = old["kickoff_utc"] != row["kickoff_utc"] and bool(row["kickoff_confirmed"])
+    confirmed = not old["kickoff_confirmed"] and row["kickoff_confirmed"]
+    postponed = row["status"] == "POSTPONED" and old["status"] != "POSTPONED"
+    rescheduled = old["status"] == "POSTPONED" and row["status"] in ("SCHEDULED", "TIMED")
+    if not (moved or confirmed or postponed or rescheduled):
+        return
+    ref = f"{old['kickoff_utc']}|{old['status']}|{old['kickoff_confirmed']}"
+    # 아직 안 보낸 안내가 있으면 '처음 시간 → 최신 시간'으로 보이도록 이전 값 유지
+    con.execute(
+        """INSERT INTO notifications (match_id, kind, channel, scheduled_utc, status, external_ref)
+           VALUES (?, 'KICKOFF_CHANGE', 'kakao_memo', ?, 'pending', ?)
+           ON CONFLICT(match_id, kind, channel) DO UPDATE SET
+             scheduled_utc=excluded.scheduled_utc, sent_utc=NULL, error=NULL,
+             external_ref=CASE WHEN notifications.status='pending' THEN notifications.external_ref
+                               ELSE excluded.external_ref END,
+             status='pending'""",
+        (old["id"], now, ref))
+    # 이미 보낸 리마인드는 새 킥오프 기준으로 다시 판단하도록 지움
+    con.execute("DELETE FROM notifications WHERE match_id=? AND channel='kakao_memo' AND kind LIKE 'REMIND_%'",
+                (old["id"],))
+    print(f"  🔔 카톡 일정 안내 대기: vs {row['opponent_name']} ({ref} → {row['kickoff_utc']}|{row['status']})")
 
 
 def main() -> None:
