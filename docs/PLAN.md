@@ -74,10 +74,10 @@ GitHub 저장소 (private)
 - [x] 우측 상단 동기화 시점 배지 (KST, 36시간 넘게 갱신 없으면 노란색 '갱신 지연')
 
 ### STEP 3. 알림 자동화
-- [~] (코드 2026-11-09) 카카오 토큰 최초 발급 `scripts/kakao_login.py` (브라우저 로그인 1회 → `.env` 저장 + 시험 메시지) + 리프레시 토큰 자동 갱신: `notify/kakao.py` 가 새 토큰을 받으면 로컬은 `.env`, Actions 는 Secrets(`GH_SECRETS_TOKEN` 개인 토큰, 이 저장소 Secrets 쓰기 권한만)에 자동 저장 → **사용자: Redirect URI 확인 + 로그인 1회 + Secrets 등록 대기**
-- [x] (2026-11-09) `notify/sync_calendar.py` — 이번 시즌 전 경기 → Google 캘린더 (46경기 등록 확인). 바뀐 일정만 수정(시간 변경·연기·스코어), 취소 경기 삭제, 시간 미정은 종일 일정. 알림은 캘린더 기본 알림(1일 전·1시간 전). Actions 는 커밋 후 단계에서 실행 (Secrets `GOOGLE_SERVICE_ACCOUNT_KEY`·`GOOGLE_CALENDAR_ID` 등록 필요)
-- [~] (코드 2026-11-09) `notify/send_kakao.py` — 카톡 리마인드: 킥오프 24시간 전 + 1시간 전 (한국/영국 시간). 30분마다 실행, 보낸 기록은 `notifications` 에 커밋 → 중복 없음. 카카오 토큰 등록 후 동작
-- [~] (코드 2026-11-09) 킥오프 시간 변경·확정·연기 감지: `etl/fetch_fixtures.py` → `notifications`(KICKOFF_CHANGE) 대기열 → 카톡 안내 + 리마인드 재설정. 캘린더는 다음 동기화에서 자동 수정
+- [x] (2026-11-09 로그인·시험 메시지·Secrets 등록 완료) 카카오 토큰 최초 발급 `scripts/kakao_login.py` (브라우저 로그인 1회 → `.env` 저장 + 시험 메시지) + 리프레시 토큰 자동 갱신: `notify/kakao.py` 가 새 토큰을 받으면 로컬은 `.env`, Actions 는 Secrets(`GH_SECRETS_TOKEN` 개인 토큰, 이 저장소 Secrets 쓰기 권한만)에 자동 저장
+- [x] (2026-11-09) `notify/sync_calendar.py` — 이번 시즌 전 경기 → Google 캘린더 (46경기 등록 확인). 바뀐 일정만 수정(시간 변경·연기·스코어), 취소 경기 삭제, 시간 미정은 종일 일정. 알림은 캘린더 기본 알림(1일 전·1시간 전). Actions 는 커밋 후 단계에서 실행 (Secrets `GOOGLE_SERVICE_ACCOUNT_KEY`·`GOOGLE_CALENDAR_ID` 등록, Actions 첫 실행 성공)
+- [x] (2026-11-09 Actions 연결, 첫 실제 발송은 리버풀전 하루 전 2026-11-21 예정) `notify/send_kakao.py` — 카톡 리마인드: 킥오프 24시간 전 + 1시간 전 (한국/영국 시간). 30분마다 실행, 보낸 기록은 `notifications` 에 커밋 → 중복 없음.
+- [x] (2026-11-09) 킥오프 시간 변경·확정·연기 감지: `etl/fetch_fixtures.py` → `notifications`(KICKOFF_CHANGE) 대기열 → 카톡 안내 + 리마인드 재설정. 캘린더는 다음 동기화에서 자동 수정
 
 ### STEP 4. 경기 결과 요약 + 카톡 전송 (무료 템플릿 방식)
 - [x] (2026-11-09 `scripts/summarize_match.py`, 웹은 영문 `analysis_md` + 카톡용 한글 `summary_ko`) 경기 종료 감지 → 상세 데이터 수집 → **규칙 기반 템플릿 요약** 생성 (스코어·득점자/도움·카드·FPL 보너스 상위 선수·순위 변동·다음 경기) → `match_analyses` (`model` 컬럼에 `template-v1` 기록)
