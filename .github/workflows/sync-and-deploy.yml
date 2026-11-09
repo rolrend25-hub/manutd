@@ -15,6 +15,11 @@ on:
     - cron: "0 5 * * *"      # 매일 05:00 UTC (KST 14:00) 전체 동기화
     - cron: "*/30 * * * *"   # 30분마다: 점검 + 경기 종료 결과 대기 중일 때만 동기화
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "알림 테스트 (체크하면 일부러 점검 실패를 만들어 알림 이슈 발송, 동기화·배포 안 함)"
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -60,9 +65,17 @@ jobs:
 
       - name: 2. API 사전 점검
         id: sources
+        if: ${{ !inputs.test_alert }}
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
         run: python scripts/check_sources.py | tee "$REPORT_DIR/2_sources.txt"
+
+      - name: 알림 테스트 (수동 실행 시에만)
+        id: testalert
+        if: ${{ inputs.test_alert }}
+        run: |
+          echo "✗ [테스트] 알림 경로 점검용으로 일부러 만든 실패입니다. 다음 정상 실행 때 자동으로 닫힙니다." | tee "$REPORT_DIR/0_test.txt"
+          exit 1
 
       - name: 동기화 필요 여부 판단
         id: gate
@@ -132,7 +145,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OUT_PRIVACY: ${{ steps.privacy.outcome }}
-          OUT_SOURCES: ${{ steps.sources.outcome }}
+          OUT_SOURCES: ${{ steps.testalert.outcome == 'failure' && 'failure' || steps.sources.outcome }}
           OUT_ETL: ${{ steps.etl.outcome }}
           OUT_VALIDATE: ${{ steps.validate.outcome }}
           OUT_STAGED: ${{ steps.staged.outcome }}
