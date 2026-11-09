@@ -11,6 +11,7 @@ from html.parser import HTMLParser
 from common import get_json
 
 API = "https://en.wikipedia.org/w/api.php"
+VOID = {"br", "img", "hr", "meta", "link", "input", "wbr", "col", "source"}
 
 
 def page_html(title: str) -> tuple[str, int]:
@@ -34,18 +35,19 @@ class _Tables(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.tables, self.stack = [], []
         self.heading, self._in_h, self._htext = "", False, ""
-        self._skip = 0  # <sup>(각주), <style> 등 무시
+        self._skip_tag, self._skip = None, 0  # <sup>(각주)·<style>·숨김 요소 무시: (태그, 중첩 깊이)
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag in ("h2", "h3", "h4"):
             self._in_h, self._htext = True, ""
-        if tag in ("sup", "style", "script") or "display:none" in (a.get("style") or "").replace(" ", ""):
-            self._skip += 1
-            return
         if self._skip:
-            if tag in ("sup", "style", "script"):
+            if tag == self._skip_tag:
                 self._skip += 1
+            return
+        hidden = "display:none" in (a.get("style") or "").replace(" ", "")
+        if (tag in ("sup", "style", "script") or hidden) and tag not in VOID:
+            self._skip_tag, self._skip = tag, 1
             return
         if tag == "table":
             self.stack.append({"heading": self.heading, "rows": [], "cls": a.get("class", ""), "cell": None, "row": None})
@@ -68,7 +70,7 @@ class _Tables(HTMLParser):
         if tag in ("h2", "h3", "h4") and self._in_h:
             self._in_h, self.heading = False, self._htext.strip()
         if self._skip:
-            if tag in ("sup", "style", "script"):
+            if tag == self._skip_tag:
                 self._skip -= 1
             return
         if not self.stack:

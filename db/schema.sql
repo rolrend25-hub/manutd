@@ -260,6 +260,7 @@ CREATE TABLE IF NOT EXISTS matches (
     match_fd_id     INTEGER UNIQUE,
     match_af_id     INTEGER UNIQUE,
     match_fpl_id    INTEGER,
+    match_ext_id    TEXT UNIQUE,        -- football-data 에 없는 경기 (예: 'wiki:2026-27:ELC:Third round')
     details_synced  INTEGER DEFAULT 0,  -- 이벤트/라인업/스탯 수집 완료 여부
     created_at      TEXT DEFAULT (datetime('now')),
     updated_at      TEXT DEFAULT (datetime('now'))

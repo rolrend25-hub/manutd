@@ -2,7 +2,7 @@
 
 사용법:  python notify/sync_calendar.py [--dry-run]
 
-- 이번 시즌 맨유 경기 전체를 캘린더 일정으로 유지 (일정마다 fd_match_id 로 식별 → 중복 없음)
+- 이번 시즌 맨유 경기 전체를 캘린더 일정으로 유지 (일정마다 fd_match_id 또는 ext_match_id(위키백과 컵 경기) 로 식별 → 중복 없음)
 - 바뀐 일정만 수정: 킥오프 시간 변경·연기·결과(스코어) 반영. 취소되거나 DB 에서 사라진 경기는 삭제
 - 킥오프 시간 미정(kickoff_confirmed=0)이면 '하루 종일' 일정으로 → 엉뚱한 시간에 알람 울리지 않게
 - 알림: 캘린더 '기본 알림' 사용 (구글 캘린더 설정에서 1일 전·1시간 전으로 지정)
@@ -50,6 +50,13 @@ def calendar_service(env: dict):
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
+def match_key(m) -> tuple[str, str]:
+    """캘린더 일정 식별 속성 (이름, 값). football-data 경기는 기존 fd_match_id 유지."""
+    if m["match_fd_id"] is not None:
+        return "fd_match_id", str(m["match_fd_id"])
+    return "ext_match_id", m["match_ext_id"]
+
+
 def build_event(m) -> dict:
     ko = datetime.fromisoformat(m["kickoff_utc"].replace("Z", "+00:00"))
     home, away = (MU, m["opponent_name"]) if m["home_away"] != "A" else (m["opponent_name"], MU)
@@ -90,7 +97,7 @@ def build_event(m) -> dict:
         "start": start,
         "end": end,
         "reminders": {"useDefault": True},
-        "extendedProperties": {"private": {"fd_match_id": str(m["match_fd_id"]), "src": SRC}},
+        "extendedProperties": {"private": {**dict([match_key(m)]), "src": SRC}},
     }
 
 
@@ -111,13 +118,14 @@ def differs(ev: dict, body: dict) -> list[str]:
 
 
 def list_our_events(cal, cal_id: str) -> dict[str, list[dict]]:
-    """캘린더에 있는 우리 일정(fd_match_id 가 있는 것) 전체 → {fd_match_id: [event, ...]}"""
+    """캘린더에 있는 우리 일정 전체 → {'fd_match_id=123' 또는 'ext_match_id=wiki:..': [event, ...]}"""
     out, token = {}, None
     while True:
         res = cal.events().list(calendarId=cal_id, maxResults=2500, pageToken=token, showDeleted=False,
                                 singleEvents=True).execute()
         for ev in res.get("items", []):
-            fid = ev.get("extendedProperties", {}).get("private", {}).get("fd_match_id")
+            props = ev.get("extendedProperties", {}).get("private", {})
+            fid = next((f"{k}={props[k]}" for k in ("fd_match_id", "ext_match_id") if props.get(k)), None)
             if fid:
                 out.setdefault(fid, []).append(ev)
         token = res.get("nextPageToken")
@@ -140,13 +148,13 @@ def main() -> int:
         """SELECT m.*, c.name AS comp_name, c.name_ko AS comp_name_ko
            FROM matches m JOIN seasons s ON s.season = m.season AND s.is_current = 1
            LEFT JOIN competitions c ON c.code = m.competition_code
-           WHERE m.match_fd_id IS NOT NULL ORDER BY m.kickoff_utc""").fetchall()
+           WHERE m.match_fd_id IS NOT NULL OR m.match_ext_id IS NOT NULL ORDER BY m.kickoff_utc""").fetchall()
 
     existing = list_our_events(cal, cal_id)
     created = updated = deleted = same = 0
     wanted = set()
     for m in rows:
-        fid = str(m["match_fd_id"])
+        fid = "=".join(match_key(m))
         if m["status"] == "CANCELLED":
             continue  # 아래에서 기존 일정 삭제
         wanted.add(fid)
@@ -178,7 +186,7 @@ def main() -> int:
             same += 1
 
     # 취소된 경기 일정 삭제. 이번 시즌 DB 에 없는 일정(지난 시즌 등)은 손대지 않음
-    cancelled = {str(m["match_fd_id"]) for m in rows} - wanted
+    cancelled = {"=".join(match_key(m)) for m in rows} - wanted
     for fid in cancelled:
         for ev in existing.get(fid, []):
             print(f"  - 삭제  {ev.get('summary')} (취소된 경기)")

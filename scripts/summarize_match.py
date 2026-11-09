@@ -51,7 +51,7 @@ def generate(ctx: dict) -> dict:
     where = "at Old Trafford" if home else f"away at {m['venue']}" if m["venue"] else "away from home"
     comp = COMP_EN.get(m["competition_code"], m["competition_code"])
     stage = f" (matchweek {m['matchday']})" if m["competition_code"] == "PL" and m["matchday"] else \
-            f" league phase (matchday {m['matchday']})" if m["competition_code"] == "UCL" and m["matchday"] else ""
+            f" league phase (matchday {m['matchday']})" if m["competition_code"] == "UCL" and m["matchday"] else             f" {m['stage'].lower()}" if m["competition_code"] in ("FAC", "ELC") and m.get("stage") else ""
     verb = (f"beat {opp} {mu}-{op}" if mu > op else
             f"drew {mu}-{op} with {opp}" if mu == op else f"lost {mu}-{op} to {opp}")
     s = [f"Manchester United {verb} {where} in the {comp}{stage}."]
