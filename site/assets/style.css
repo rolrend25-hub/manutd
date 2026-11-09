@@ -40,7 +40,7 @@ img { max-width: 100%; }
 .sync-badge.stale .dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(251,225,34,.2); }
 .sync-badge.stale { color: var(--gold); }
 .sync-badge.none .dot { background: #777; box-shadow: none; }
-@media (max-width: 420px) { .sync-badge .long { display: none; } }
+@media (max-width: 480px) { .sync-badge .long { display: none; } }
 
 /* ---------- header ---------- */
 .site-header {
