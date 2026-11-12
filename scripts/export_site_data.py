@@ -51,8 +51,8 @@ def main() -> None:
                                    "FROM v_honours_count"),
         # 맨유 공식 엠블럼: 저장소에 파일로 올리지 않고 football-data 서버 이미지를 링크만 함
         "mu_crest": (con.execute("SELECT crest_url FROM teams WHERE team_fd_id = 66").fetchone() or [None])[0],
-        "managers": rows(con, "SELECT name, name_ko, nationality, start_date, end_date, is_caretaker, note, note_en "
-                              "FROM managers ORDER BY start_date"),
+        "managers": rows(con, "SELECT name, name_ko, nationality, start_date, end_date, is_caretaker, note, note_en, "
+                              "matches, wins, draws, losses FROM managers ORDER BY start_date"),
         "timeline": rows(con, "SELECT year, title, title_ko, body_ko, category FROM history_timeline "
                               "ORDER BY year, sort_order"),
         "players": rows(con, """
@@ -72,8 +72,11 @@ def main() -> None:
             WHERE m.season = ?
             ORDER BY s.goals DESC, s.assists DESC, s.minutes DESC""", (season,)),
         "transfers": rows(con, "SELECT player_name, position, direction, transfer_type, from_club, to_club, fee_text, "
-                               "transfer_date, transfer_window, season, status, source, source_url FROM transfers "
+                               "transfer_date, transfer_window, season, status, source, source_url, verify_status, verify_note FROM transfers "
                                "ORDER BY transfer_date DESC"),
+        "transfer_checks": rows(con, "SELECT season, player_name, kind, detail, first_seen_utc FROM transfer_checks "
+                                     "WHERE resolved_utc IS NULL ORDER BY first_seen_utc")
+                           if con.execute("SELECT 1 FROM sqlite_master WHERE name='transfer_checks'").fetchone() else [],
         "last_sync": rows(con, """
             SELECT source, job, MAX(finished_utc) AS finished_utc FROM sync_log
             WHERE status='ok' GROUP BY source, job"""),

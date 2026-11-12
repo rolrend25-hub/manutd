@@ -177,6 +177,24 @@ def check_players(con, season):
         err(f"선수 시즌 기록 음수/모순 {bad}건")
 
 
+def check_managers(con):
+    cur = q(con, "SELECT name FROM managers WHERE end_date IS NULL")
+    if len(cur) != 1:
+        err(f"현직 감독(end_date 없음)이 {len(cur)}명: {', '.join(r[0] for r in cur)}")
+    n = q(con, "SELECT COUNT(*) FROM managers")[0][0]
+    if n < 10:
+        err(f"감독 목록이 비정상적으로 적음: {n}명")
+
+
+def check_transfers(con, season):
+    cols = {r[1] for r in q(con, "PRAGMA table_info(transfers)")}
+    if "verify_status" not in cols:
+        return
+    n = q(con, "SELECT COUNT(*) FROM transfers WHERE season=? AND verify_status IS NULL", (season,))[0][0]
+    if n:
+        warn(f"이적 {n}건이 공식 명단 교차검증 안 됨 (etl/fetch_club.py 실패?)")
+
+
 def check_sync_log(con):
     for (src, job, st, msg) in q(con, """
             SELECT source, job, status, message FROM sync_log s
@@ -258,6 +276,8 @@ def main() -> int:
         check_mu_cross(con, season)
         check_events(con, season)
         check_players(con, season)
+        check_managers(con)
+        check_transfers(con, season)
         check_sync_log(con)
         if base and Path(base).exists() and Path(base).stat().st_size > 0:
             check_baseline(con, base, season)

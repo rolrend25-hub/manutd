@@ -240,11 +240,18 @@
 
   let transferSeason = null;
   const TT_EN = { permanent: "Transfer", free: "Free", release: "Released", loan: "Loan", loan_return: "Loan return", youth_promotion: "Academy" };
+  const VERIFY = { verified: ["vf-ok", "✓ Official"], consistent: ["vf-none", "No conflict"], unverified: ["vf-none", "Unverified"], conflict: ["vf-bad", "⚠ Mismatch"] };
+  function verifyBadge(t) {
+    const v = VERIFY[t.verify_status];
+    return v ? `<span class="badge ${v[0]}" title="${esc(t.verify_note || "")}">${v[1]}</span>` : '<span class="small muted">-</span>';
+  }
+  const CHECK_EN = { missing_in: "Joined per official data, missing from Wikipedia signings", missing_out: "Left / on loan per official data, missing from Wikipedia departures", conflict: "Wikipedia and official squad disagree" };
   function pageTransfers() {
     if (!D.transfers.length) return pageEmpty("이적 현황", "Signings · Departures · Loans", "No transfer data yet.");
     const seasons = [...new Set(D.transfers.map((t) => t.season).filter(Boolean))].sort().reverse();
     if (!transferSeason || !seasons.includes(transferSeason)) transferSeason = seasons[0];
     const list = D.transfers.filter((t) => t.season === transferSeason);
+    const checks = (D.transfer_checks || []).filter((c) => c.season === transferSeason);
     const groups = [
       ["영입", "Signings", list.filter((t) => t.direction === "in" && t.transfer_type !== "loan"), "from_club", "From"],
       ["임대 영입", "Loans in", list.filter((t) => t.direction === "in" && t.transfer_type === "loan"), "from_club", "From"],
@@ -255,10 +262,11 @@
     return `${title("이적 현황")}<p class="page-sub">${esc(transferSeason)} · ${list.filter((t) => t.direction === "in").length} in · ${list.filter((t) => t.direction === "out").length} out</p>
       <div class="filters">${seasons.map((s) => `<button data-tseason="${esc(s)}" class="${s === transferSeason ? "on" : ""}">${esc(s)}</button>`).join("")}</div>
       ${groups.map(([ko, en, rows, clubKey, clubLabel]) => `<div class="card" style="margin-bottom:16px"><h2>${ko} <small>${en} · ${rows.length}</small></h2>
-        <div class="table-wrap"><table class="data"><thead><tr><th class="l">Date</th><th class="l">Pos</th><th class="l">Player</th><th class="l">${clubLabel}</th><th class="l">Type</th><th class="l">Fee / Note</th></tr></thead>
+        <div class="table-wrap"><table class="data"><thead><tr><th class="l">Date</th><th class="l">Pos</th><th class="l">Player</th><th class="l">${clubLabel}</th><th class="l">Type</th><th class="l">Fee / Note</th><th class="l">Check</th></tr></thead>
         <tbody>${rows.slice().sort((a, b) => (a.transfer_date < b.transfer_date ? 1 : -1)).map((t) => `<tr><td class="l small">${esc(t.transfer_date)}</td><td class="l small">${esc(t.position || "")}</td>
-          <td class="l"><b>${esc(t.player_name)}</b></td><td class="l">${esc(t[clubKey] || "-")}</td><td class="l small">${esc(TT_EN[t.transfer_type] || t.transfer_type || "")}</td><td class="l small muted">${esc(t.fee_text || "-")}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}
-      ${fromWiki ? `<p class="small muted">Source: <a href="${esc(list.find((t) => t.source_url)?.source_url || "https://en.wikipedia.org/")}" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0). Fees are usually undisclosed officially.</p>` : ""}`;
+          <td class="l"><b>${esc(t.player_name)}</b></td><td class="l">${esc(t[clubKey] || "-")}</td><td class="l small">${esc(TT_EN[t.transfer_type] || t.transfer_type || "")}</td><td class="l small muted">${esc(t.fee_text || "-")}</td><td class="l">${verifyBadge(t)}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}
+      ${checks.length ? `<div class="card" style="margin-bottom:16px"><h2>확인 필요 <small>Data checks · ${checks.length}</small></h2><ul class="match-list">${checks.map((c) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(c.player_name)}</b><div class="small muted">${esc(CHECK_EN[c.kind] || c.kind)}</div></div><div class="small muted">${esc((c.first_seen_utc || "").slice(0, 10))}</div></li>`).join("")}</ul></div>` : ""}
+      ${fromWiki ? `<p class="small muted">Source: <a href="${esc(list.find((t) => t.source_url)?.source_url || "https://en.wikipedia.org/")}" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0), cross-checked daily against the official first-team squad (football-data.org) and Fantasy Premier League player status. <b>✓ Official</b> = confirmed by official squad data · <b>No conflict</b> = departure not contradicted (player not in the official squad), but no direct official record · <b>Unverified</b> = player outside the first-team squad (e.g. academy), cannot be checked · <b>⚠ Mismatch</b> = Wikipedia and official data disagree. Fees are usually undisclosed officially.</p>` : ""}`;
   }
 
   const TROPHY_EN = { PL: "League titles", FL1: "League titles", FAC: "FA Cup", ELC: "League Cup", UCL: "European Cup / UCL", UEL: "Europa League", UCWC: "Cup Winners' Cup", USC: "UEFA Super Cup", ICC: "Intercontinental Cup", CWC: "Club World Cup", CS: "Community Shield" };
@@ -277,8 +285,8 @@
         <div class="card span-8"><h2>주요 연표</h2><ul class="timeline">
           ${D.timeline.map((t) => `<li class="${t.category === "trophy" ? "trophy-ev" : ""}"><div class="yr">${t.year}</div><div class="ttl">${esc(t.title || t.title_ko)}</div></li>`).join("")}
         </ul></div>
-        <div class="card span-4"><h2>역대 주요 감독</h2><ul class="match-list">
-          ${D.managers.slice().reverse().map((m) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(m.name)}</b>${m.is_caretaker ? ' <span class="badge ha">Interim</span>' : ""}<div class="small muted">${esc([m.nationality, m.note_en].filter(Boolean).join(" · "))}</div></div><div class="small muted" style="text-align:right">${esc(m.start_date)} –<br>${esc(m.end_date || "Present")}</div></li>`).join("")}
+        <div class="card span-4"><h2>역대 감독 <small>${D.managers.length}</small></h2><ul class="match-list managers">
+          ${D.managers.slice().reverse().map((m) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(m.name)}</b>${m.is_caretaker ? ' <span class="badge ha">Interim</span>' : ""}<div class="small muted">${esc([m.nationality, m.matches ? `P${m.matches} W${m.wins} D${m.draws} L${m.losses}` : "", m.note_en].filter(Boolean).join(" · "))}</div></div><div class="small muted" style="text-align:right">${esc(m.start_date)} –<br>${esc(m.end_date || "Present")}</div></li>`).join("")}
         </ul></div>
       </div>`;
   }

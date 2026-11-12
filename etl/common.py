@@ -63,6 +63,27 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def name_tokens(name: str) -> list[str]:
+    """'Benjamin Šeško' → ['benjamin', 'sesko'] (악센트·기호 제거, 소문자, 'Sir' 등 호칭 제거)."""
+    import re
+    import unicodedata
+    s = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"\(.*?\)", " ", s)
+    return [t for t in re.split(r"[^a-z]+", s) if t and t not in ("sir", "jr", "junior")]
+
+
+def names_match(a: str, b: str) -> bool:
+    """같은 사람인지 느슨하게 비교. 'Andrey Santos' ≈ 'Andrey Nascimento dos Santos', 'Diogo Dalot' ≈ 'Diogo Dalot Teixeira'.
+    한 단어 이름(Casemiro 등)은 완전히 같을 때만 인정."""
+    ta, tb = name_tokens(a), name_tokens(b)
+    if not ta or not tb:
+        return False
+    if ta == tb:
+        return True
+    short, long_ = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    return len(short) >= 2 and set(short) <= set(long_)
+
+
 def season_label(start_year: int) -> str:
     return f"{start_year}-{(start_year + 1) % 100:02d}"
 

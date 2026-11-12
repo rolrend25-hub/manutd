@@ -159,6 +159,10 @@ img.brand-mark { width: 46px; height: 46px; border-radius: 0; background: none; 
 .badge.UCL { background: #0b1d5c; color: #fff; }
 .badge.FAC, .badge.ELC { background: #e8e8e8; color: #222; }
 .badge.ha { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+.badge.vf-ok { background: #e7f6ec; color: #17733a; cursor: help; }
+.badge.vf-none { background: var(--paper); color: var(--muted); border: 1px solid var(--line); cursor: help; }
+.badge.vf-bad { background: #f59e0b; color: #fff; cursor: help; }
+.match-list.managers { max-height: 640px; overflow-y: auto; }
 
 /* ---------- match list ---------- */
 .match-list { list-style: none; margin: 0; padding: 0; }

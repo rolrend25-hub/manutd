@@ -139,7 +139,9 @@ INSERT INTO managers (name, name_ko, nationality, start_date, end_date, is_caret
  ('Ole Gunnar Solskjær','올레 군나르 솔샤르','Norway','2018-12','2021-11',0,NULL),
  ('Ralf Rangnick','랄프 랑닉','Germany','2021-12','2022-05',1,'임시 감독'),
  ('Erik ten Hag','에릭 텐하흐','Netherlands','2022-05','2024-10',0,'2023 리그컵, 2024 FA컵'),
- ('Ruben Amorim','후벵 아모링','Portugal','2024-11',NULL,0,'end_date: 현 상태 확인 후 갱신 필요');
+ ('Ruben Amorim','후벵 아모링','Portugal','2024-11-11','2026-01-05',0,NULL),
+ ('Michael Carrick','마이클 캐릭','England','2026-01-13',NULL,0,NULL);
+-- 이후 etl/fetch_club.py 가 위키백과 전체 목록 + football-data 현직 감독 확인으로 매일 갱신
 
 -- 감독 영문 비고 (웹 본문용)
 UPDATE managers SET note_en='First league title' WHERE name='Ernest Mangnall';
