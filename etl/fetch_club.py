@@ -113,6 +113,14 @@ def sync_managers(con, coach: dict | None, dry: bool) -> None:
     rows, rev = wiki_managers()
     cur = [r for r in rows if r["current"]]
     print(f"[감독] 위키백과 (rev {rev}): {len(rows)}명, 현직 {cur[0]['name'] if cur else '없음'}")
+    if not cur and official and rows:
+        # 위키 편집 실수 대비 (예: 2026-11-12 전적 갱신하며 'present' 대신 오늘 날짜 입력):
+        # 현직 표시가 없어도 가장 최근 감독이 공식 감독과 같으면 그 사람을 현직으로 봄 (현직 판단은 공식 기준)
+        last = max(rows, key=lambda r: r["start_date"] or "")
+        if names_match(last["name"], official):
+            print(f"  위키에 현직 표시 없음 (마지막 행 종료일 {last['end_date']}) → 공식 감독과 같아 현직으로 처리")
+            last["end_date"], last["current"] = None, True
+            cur = [last]
     if len(rows) < 20 or len(cur) != 1:
         alert(f"감독 목록(위키백과) 형식이 예상과 다름 ({len(rows)}명, 현직 {len(cur)}명) → 기존 데이터 유지")
         return
