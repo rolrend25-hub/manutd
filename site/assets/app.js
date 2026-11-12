@@ -71,24 +71,6 @@
   }
 
   // ---------- pages ----------
-  function heroNext() {
-    const m = upcoming[0];
-    if (!m) return `<section class="hero"><div class="eyebrow">다음 경기</div><p class="hero-empty">No upcoming fixtures scheduled.</p></section>`;
-    const home = m.home_away !== "A";
-    const mu = `<div class="side">${muCrest("crest crest-mu-img")}<div class="name">MAN UNITED</div><div class="tag">${home ? "HOME" : "AWAY"}</div></div>`;
-    const op = `<div class="side">${m.opponent_crest ? `<img class="crest" src="${esc(m.opponent_crest)}" alt="">` : ""}<div class="name">${esc(m.opponent).toUpperCase()}</div><div class="tag">${home ? "AWAY" : "HOME"}</div></div>`;
-    return `<section class="hero">
-      <div class="eyebrow">다음 경기 · ${esc(compKo(m.comp))}${m.matchday ? (m.comp === "PL" ? ` ${m.matchday}라운드` : ` 리그 페이즈 ${m.matchday}차전`) : ""}</div>
-      <div class="versus">${home ? mu : op}<div class="vs">VS</div>${home ? op : mu}</div>
-      <div class="countdown" id="countdown" data-kickoff="${esc(m.kickoff_utc)}"></div>
-      <div class="times">
-        <div class="time-box"><div class="label">Korea time (KST)</div><div class="val">${koTime(m, KST)}</div></div>
-        <div class="time-box"><div class="label">UK time (${ukZone(m.kickoff_utc)})</div><div class="val">${koTime(m, UK)}</div></div>
-      </div>
-      <div class="meta">${m.venue ? esc(m.venue) + " · " : ""}${m.kickoff_confirmed ? "" : "Kick-off time TBC · "}${home ? "Home match" : "Away match"}</div>
-    </section>`;
-  }
-
   function tickCountdown() {
     const el = document.getElementById("countdown");
     if (!el) return;
@@ -96,7 +78,109 @@
     if (diff <= 0) { el.innerHTML = `<div style="min-width:auto;padding:8px 16px"><b style="font-size:22px">KICK OFF</b><span>In play or awaiting result</span></div>`; return; }
     const d = Math.floor(diff / 864e5), h = Math.floor(diff / 36e5) % 24, mi = Math.floor(diff / 6e4) % 60, s = Math.floor(diff / 1e3) % 60;
     const p = (n) => String(n).padStart(2, "0");
+    if (el.classList.contains("compact")) { el.innerHTML = `<b>D-${d}</b> ${p(h)}:${p(mi)}:${p(s)}`; return; }
     el.innerHTML = [[d, "Days"], [p(h), "Hours"], [p(mi), "Mins"], [p(s), "Secs"]].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join("");
+  }
+
+  // ----- 메인: 상단 다음 경기 바 + 매치 프리뷰(왼쪽) + 주요 뉴스(오른쪽) -----
+  const koDT = (iso) => fmt(KST, { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, "ko-KR").format(new Date(iso));
+  const koD = (iso) => fmt(KST, { month: "numeric", day: "numeric", weekday: "short" }, "ko-KR").format(new Date(iso));
+  const ago = (iso) => {
+    const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 6e4));
+    return m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m / 60)}시간 전` : `${Math.floor(m / 1440)}일 전`;
+  };
+  const COMP_SHORT = { PL: "PL", UCL: "UCL", UEL: "UEL", FAC: "FA컵", ELC: "EFL컵", CS: "실드", CHAMP: "챔피언십", PPL: "포르투갈", PD: "라리가", SA: "세리에A", BL1: "분데스", FL1: "리그1", DED: "네덜란드" };
+
+  function nextBar() {
+    const m = upcoming[0];
+    if (!m) return `<section class="nextbar empty"><span class="nb-label">다음 경기</span><span>예정된 경기가 없습니다</span></section>`;
+    const home = m.home_away !== "A";
+    const opCrest = m.opponent_crest ? `<img class="nb-crest" src="${esc(m.opponent_crest)}" alt="">` : "";
+    const mu = `${muCrest("nb-crest")}<b>맨유</b>`, op = `${opCrest}<b>${esc(m.opponent)}</b>`;
+    const round = m.matchday ? (m.comp === "PL" ? ` ${m.matchday}R` : ` ${m.matchday}차전`) : "";
+    return `<a class="nextbar" href="#match/${m.id}">
+      <span class="nb-label">다음 경기</span>
+      <span class="badge ${esc(m.comp)}">${esc(compKo(m.comp))}${round}</span>
+      <span class="nb-teams">${home ? mu : op}<span class="nb-vs">vs</span>${home ? op : mu}</span>
+      <span class="nb-time">${m.kickoff_confirmed ? `${koDT(m.kickoff_utc)} KST` : `${koD(m.kickoff_utc)} · 시간 미정`}<small>${m.kickoff_confirmed ? ` · UK ${hm(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}` : ""}${m.venue ? " · " + esc(m.venue) : ""} · ${home ? "홈" : "원정"}</small></span>
+      <span class="nb-cd compact" id="countdown" data-kickoff="${esc(m.kickoff_utc)}"></span>
+    </a>`;
+  }
+
+  const formChips = (ms) => `<div class="form">${(ms || []).slice().reverse().map((x) => `<span class="chip ${x.r}" title="${esc(`${x.date} ${COMP_SHORT[x.comp] || x.comp} ${x.ha === "H" ? "홈" : "원정"} vs ${x.opp}  ${x.gf}-${x.ga}`)}">${{ W: "승", D: "무", L: "패" }[x.r]}</span>`).join("")}</div>`;
+  const keyList = (ks) => (ks && ks.length ? `<p class="pv-keys"><span>핵심 선수</span> ${ks.map((k) => `<b>${esc(k.name)}</b> <small class="muted">${k.goals}골 ${k.assists}도움</small>`).join(" · ")}</p>` : "");
+  function teamCol(name, crest, t, fixed) {
+    return `<div class="pv-team"><h3>${crest}${esc(name)} ${fixed ? '<small class="muted">우리 팀</small>' : '<small class="muted">상대 팀</small>'}</h3>
+      ${t.recent && t.recent.length ? formChips(t.recent) : '<p class="muted small">최근 경기 기록 없음</p>'}
+      <ul class="pv-points">${(t.points || []).map((p) => `<li>${esc(p)}</li>`).join("")}</ul>${keyList(t.keys)}</div>`;
+  }
+  function outList(list) {
+    if (!list) return '<p class="muted small">정보 없음</p>';
+    if (!list.length) return '<p class="muted small">결장 예상 선수 없음</p>';
+    return `<ul class="pv-out">${list.map((p) => `<li><span class="pos">${esc(p.pos)}</span><b>${esc(p.name)}</b><span class="badge ${p.status === "s" ? "st-sus" : p.status === "d" ? "st-doubt" : "st-inj"}" title="${esc(p.news)}">${esc(p.ko)}</span></li>`).join("")}</ul>`;
+  }
+  function previewPanel() {
+    const m = upcoming[0], P = D.preview;
+    if (!m) return `<div class="card"><h2>매치 프리뷰</h2><p class="muted">다가오는 경기가 없습니다.</p></div>`;
+    if (!P || P.match_id !== m.id) return `<div class="card"><h2>매치 프리뷰</h2><p class="muted">다음 데이터 동기화 때 프리뷰가 생성됩니다.</p></div>`;
+    const opCrest = m.opponent_crest ? `<img class="pv-crest" src="${esc(m.opponent_crest)}" alt="">` : "";
+    const pr = P.prediction, hr = P.h2h_record;
+    const xi = P.lineup || {};
+    const byPos = ["GK", "DF", "MF", "FW"].map((pos) => [pos, (xi.players || []).filter((p) => p.pos === pos)]).filter(([, l]) => l.length);
+    return `<div class="card pv">
+        <div class="section-head"><h2>매치 프리뷰 <small>vs ${esc(P.opponent)}</small></h2><span class="pv-tag">통계 기반 자동 분석</span></div>
+        <div class="pv-teams">${teamCol("맨유", muCrest("pv-crest"), P.mu, true)}${teamCol(P.opponent, opCrest, P.opp, false)}</div>
+        ${(P.notes || []).map((n) => `<p class="pv-note">${esc(n)}</p>`).join("")}
+      </div>
+      <div class="card pv">
+        <h2>승부 예측</h2>
+        ${pr ? `<div class="pv-bar"><span class="w" style="flex:${pr.win}">${pr.win >= 12 ? "맨유 승 " : ""}${pr.win}%</span><span class="d" style="flex:${pr.draw}">${pr.draw >= 12 ? "무 " : ""}${pr.draw}%</span><span class="l" style="flex:${pr.loss}">${pr.loss >= 12 ? esc(P.opponent) + " 승 " : ""}${pr.loss}%</span></div>
+          <div class="pv-score"><div><small>가장 가능성 높은 스코어</small><b>맨유 ${pr.score_mu} - ${pr.score_opp} ${esc(P.opponent)}</b></div>
+          <div><small>기대 득점</small><b>${pr.xg_mu.toFixed(1)} : ${pr.xg_opp.toFixed(1)}</b></div></div>
+          <p class="small muted" style="margin:8px 0 0">양 팀 최근 ${Math.min(pr.sample_mu, pr.sample_opp)}경기 득·실점과 ${P.home_away === "H" ? "맨유 홈" : P.home_away === "A" ? "상대 홈" : "중립 경기장"} 이점으로 계산한 푸아송 모델입니다. 상대한 팀의 수준·전술·부상은 반영되지 않는 참고용 수치입니다.</p>`
+          : '<p class="muted">상대 기록이 부족해 예측하지 않습니다.</p>'}
+        ${P.h2h && P.h2h.length ? `<h3 class="pv-sub">최근 맞대결 <small class="muted">${P.h2h.length}경기 ${hr.w}승 ${hr.d}무 ${hr.l}패 · ${hr.gf}득점 ${hr.ga}실점</small></h3>
+          <div class="pv-h2h">${P.h2h.map((x) => `<span class="h2h-item"><span class="chip ${x.r}">${{ W: "승", D: "무", L: "패" }[x.r]}</span><small>${esc(x.date.slice(0, 7).replace("-", "."))} ${x.ha === "H" ? "홈" : "원정"} <b>${x.gf}-${x.ga}</b></small></span>`).join("")}</div>` : ""}
+      </div>
+      <div class="card pv">
+        <h2>부상 · 결장</h2>
+        <div class="pv-teams"><div class="pv-team"><h3>${muCrest("pv-crest")}맨유</h3>${outList(P.mu.out)}</div>
+          <div class="pv-team"><h3>${opCrest}${esc(P.opponent)}</h3>${outList(P.opp.out)}</div></div>
+        <p class="small muted" style="margin:8px 0 0">출처: Fantasy Premier League 선수 상태 (PL 팀만, 출전 가능성 75% 이상은 제외). 마우스를 올리면 원문이 보입니다.</p>
+      </div>
+      <div class="card pv">
+        <h2>예상 선발 <small>${esc(xi.shape || "")}</small></h2>
+        ${xi.caveat ? `<p class="pv-note">${esc(xi.caveat)}</p>` : ""}
+        ${byPos.length ? `<div class="pv-xi">${byPos.map(([pos, l]) => `<div class="xi-row"><span class="pos">${pos}</span>${l.map((p) => `<span class="xi-p conf-${p.conf === "높음" ? "hi" : p.conf === "보통" ? "mid" : "lo"}" title="선발 가능성 ${p.conf}${p.doubt ? " · 출전 불투명" : ""}">${esc(p.name)}${p.doubt ? " ?" : ""}</span>`).join("")}</div>`).join("")}</div>
+          <p class="small muted" style="margin:8px 0 0">최근 PL ${xi.basis}경기 선발 기록(최근 경기일수록 가중)에서 부상·징계 선수를 빼고, 직전 경기 포지션 구성을 유지해 고른 명단입니다. 진한 색일수록 선발 가능성이 높습니다. 포지션은 FPL 분류라 실제 포메이션과 다를 수 있습니다.</p>`
+          : '<p class="muted">선발 기록이 아직 없습니다.</p>'}
+      </div>`;
+  }
+
+  let newsFilter = "전체", newsAll = false;
+  const NEWS_FILTERS = ["전체", "감독", "이적", "부상", "경기", "공식"];
+  function newsPanel() {
+    const all = (D.news || []).filter((n) => newsFilter === "전체" || (n.tags || "").split(",").includes(newsFilter));
+    const seen = new Set(), list = [];
+    for (const n of all) { if (seen.has(n.cluster)) continue; seen.add(n.cluster); list.push(n); }
+    const more = all.filter((n) => n.cluster !== n.url && seen.has(n.cluster));
+    const shown = newsAll ? list : list.slice(0, 10);
+    const card = (n) => {
+      const rel = more.filter((x) => x.cluster === n.cluster && x.url !== n.url);
+      return `<article class="news">
+        <div class="news-meta"><span class="src t${n.tier}">${esc(n.source_name)}</span>${n.journalists ? n.journalists.split(",").map((j) => `<span class="jr">✎ ${esc(j)}</span>`).join("") : ""}<span class="muted">${n.published_utc ? ago(n.published_utc) : ""}</span></div>
+        <a class="news-title" href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
+        ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ""}
+        <div class="news-tags">${(n.tags || "").split(",").filter(Boolean).map((t) => `<span class="ntag ${t === "공식" ? "official" : t === "루머" ? "rumour" : ""}">${esc(t)}</span>`).join("")}${rel.length ? `<span class="small muted">관련 기사 ${rel.length}건</span>` : ""}</div>
+      </article>`;
+    };
+    return `<div class="card news-card">
+      <div class="section-head"><h2>주요 뉴스</h2><span class="small muted">${(D.news || []).length}건</span></div>
+      <div class="filters news-filters">${NEWS_FILTERS.map((f) => `<button data-news="${f}" class="${f === newsFilter ? "on" : ""}">${f}</button>`).join("")}</div>
+      ${shown.map(card).join("") || '<p class="muted">해당 뉴스가 없습니다.</p>'}
+      ${!newsAll && list.length > 10 ? `<button class="news-more" data-news-more="1">뉴스 더 보기 (${list.length - 10})</button>` : ""}
+      <p class="small muted" style="margin:10px 0 0">BBC Sport · The Guardian · Sky Sports · Manchester Evening News 공식 RSS의 제목·요약과 원문 링크입니다. 태그와 기자 표시는 키워드 규칙으로 자동 분류해 틀릴 수 있습니다. 기자 이름은 기사에 언급된 경우에만 표시합니다.</p>
+    </div>`;
   }
 
   function pageHome() {
@@ -105,7 +189,11 @@
     const next = upcoming.slice(1, 6);
     const w = finished.filter((m) => m.result === "W").length, d = finished.filter((m) => m.result === "D").length, l = finished.filter((m) => m.result === "L").length;
     const gf = finished.reduce((a, m) => a + (m.mu_score || 0), 0), ga = finished.reduce((a, m) => a + (m.opp_score || 0), 0);
-    return `${heroNext()}
+    return `${nextBar()}
+    <div class="grid home-main">
+      <div class="span-7 col">${previewPanel()}</div>
+      <div class="span-5 col">${newsPanel()}</div>
+    </div>
     <div class="grid">
       <div class="card span-4">
         <h2>프리미어리그 <small>${esc(D.season)}</small></h2>
@@ -422,6 +510,9 @@
     if (ts) { transferSeason = ts.dataset.tseason; render(); }
     const era = e.target.closest("[data-era]");
     if (era) { recordsEra = era.dataset.era; render(); }
+    const nf = e.target.closest("[data-news]");
+    if (nf) { newsFilter = nf.dataset.news; newsAll = false; render(); }
+    if (e.target.closest("[data-news-more]")) { newsAll = true; render(); }
     const pos = e.target.closest("[data-pos]");
     if (pos) { playerPos = pos.dataset.pos; render(); }
     const s = e.target.closest("[data-sort]");

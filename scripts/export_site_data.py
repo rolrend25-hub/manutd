@@ -104,6 +104,16 @@ def main() -> None:
         details.setdefault(str(r.pop("match_id")), {"events": []}).setdefault("lineup", []).append(r)
     data["match_details"] = details
 
+    # 메인 화면: 다음 경기 프리뷰 (etl/build_preview.py) + 주요 뉴스 (etl/fetch_news.py)
+    has = lambda t: con.execute("SELECT 1 FROM sqlite_master WHERE name=?", (t,)).fetchone()  # noqa: E731
+    pv = con.execute("SELECT data_json FROM match_previews p JOIN matches m ON m.id=p.match_id "
+                     "WHERE m.status NOT IN ('FINISHED','CANCELLED') ORDER BY m.kickoff_utc LIMIT 1").fetchone() \
+        if has("match_previews") else None
+    data["preview"] = json.loads(pv[0]) if pv else None
+    data["news"] = rows(con, """SELECT url, source, source_name, source_tier AS tier, title, summary, published_utc,
+                                      tags, journalists, cluster FROM news_items
+                               ORDER BY published_utc DESC LIMIT 40""") if has("news_items") else []
+
     # 화면 우측 상단 표시용: 모든 수집 작업 중 가장 최근 성공 완료 시각
     data["synced_utc"] = max((s["finished_utc"] for s in data["last_sync"] if s["finished_utc"]),
                              default=None)

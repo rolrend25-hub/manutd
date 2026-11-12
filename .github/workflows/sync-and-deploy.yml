@@ -3,7 +3,7 @@ name: Sync data & deploy site
 # 매 실행 순서
 #   1) 개인정보·비밀값 검사 (저장소 전체)      ← 항상
 #   2) API 사전 점검 (키 유효성·응답 구조)      ← 항상
-#   3) 동기화 필요 여부 판단 → 시즌 전환 점검 → ETL(일정·순위·선수·경기 상세·컵 대회·이적·감독/이적 교차검증·역대 시즌·우승 기록) → 경기 요약 → 내보내기
+#   3) 동기화 필요 여부 판단 → 시즌 전환 점검 → ETL(일정·순위·선수·경기 상세·컵 대회·이적·감독/이적 교차검증·역대 시즌·우승 기록·주요 뉴스·다음 경기 프리뷰) → 경기 요약 → 내보내기
 #   3-1) 카카오톡 알림 (전날·1시간 전 리마인드, 일정 변경 안내)  ← 매 실행, 보낸 기록은 DB 에 커밋
 #   4) 데이터 검증 (정합성·교차검증·직전 버전 비교)  ← ETL 을 했거나 카톡을 보낸 경우
 #   5) 개인정보·비밀값 검사 (커밋 직전 staged)
@@ -105,6 +105,8 @@ jobs:
             && { python etl/fetch_club.py || echo "⚠ 감독 동기화·이적 교차검증 실패 — 이번 실행은 건너뜀" | tee -a "$REPORT_DIR/3_club.txt"; } \
             && { python etl/backfill_history.py > "$RUNNER_TEMP/history.log" 2>&1 || echo "⚠ 역대 시즌 기록(위키백과) 갱신 실패 — 이번 실행은 건너뜀" | tee -a "$REPORT_DIR/3_history.txt"; } \
             && { python etl/sync_honours.py || echo "⚠ 우승 기록 계산 실패 — 이번 실행은 건너뜀" | tee -a "$REPORT_DIR/3_honours.txt"; } \
+            && { python etl/fetch_news.py | tee -a "$REPORT_DIR/3_news.txt" || echo "⚠ 주요 뉴스(RSS) 수집 실패 — 기존 뉴스 유지" | tee -a "$REPORT_DIR/3_news.txt"; } \
+            && { python etl/build_preview.py || echo "⚠ 다음 경기 프리뷰 생성 실패 — 이번 실행은 건너뜀" | tee -a "$REPORT_DIR/3_preview.txt"; } \
             && python scripts/summarize_match.py && python scripts/export_site_data.py; } 2>&1 | tee "$RUNNER_TEMP/etl.log"
 
       - name: 3-1. 카카오톡 알림 (리마인드·일정 변경)

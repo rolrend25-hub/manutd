@@ -298,3 +298,80 @@ p.summary { margin: 0; font-size: 16px; line-height: 1.75; }
   .board-score { font-size: 40px; }
   table.events tbody th { width: 30%; }
 }
+
+/* ---------- 메인: 다음 경기 바 ---------- */
+.nextbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin: 18px 0 16px; padding: 12px 18px;
+  border-radius: var(--radius); color: #fff; text-decoration: none;
+  background: linear-gradient(110deg, var(--red) 0%, var(--red-deep) 60%, #2a0705 100%); box-shadow: var(--shadow);
+}
+.nextbar.empty { color: #fff; }
+.nb-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; opacity: .85; }
+.nb-teams { display: inline-flex; align-items: center; gap: 8px; font-size: 17px; }
+.nb-teams b { font-weight: 900; }
+.nb-vs { opacity: .7; font-size: 13px; margin: 0 2px; }
+.nb-crest { width: 30px; height: 30px; object-fit: contain; }
+.nb-crest.crest-fallback { display: inline-grid; place-items: center; border-radius: 50%; background: #fff; color: var(--red); font: 12px var(--display); }
+.nb-time { display: flex; flex-direction: column; font-weight: 700; font-size: 14px; line-height: 1.3; }
+.nb-time small { font-weight: 400; font-size: 12px; opacity: .8; }
+.nb-cd { margin-left: auto; font-size: 15px; background: rgba(0,0,0,.28); padding: 6px 12px; border-radius: 8px; white-space: nowrap; }
+.nb-cd b { font: 20px/1 var(--display); margin-right: 4px; color: var(--gold); }
+.nextbar:hover { filter: brightness(1.05); }
+@media (max-width: 640px) { .nb-cd { margin-left: 0; } .nb-teams { font-size: 15px; } }
+
+/* ---------- 메인: 2단 (프리뷰 / 뉴스) ---------- */
+.span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; }
+@media (max-width: 900px) { .span-7, .span-5 { grid-column: span 12; } }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pv-tag { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
+.pv-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 560px) { .pv-teams { grid-template-columns: 1fr; } }
+.pv-team h3 { display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0 0 8px; }
+.pv-team h3 small { font-weight: 400; font-size: 12px; }
+.pv-crest { width: 26px; height: 26px; object-fit: contain; flex: none; }
+.pv-crest.crest-fallback { display: inline-grid; place-items: center; border-radius: 50%; background: var(--red); color: var(--gold); font: 11px var(--display); }
+.pv-points { margin: 10px 0 0; padding-left: 18px; font-size: 14px; }
+.pv-points li { margin: 3px 0; }
+.pv-points li::marker { color: var(--red); }
+.pv-keys { margin: 10px 0 0; font-size: 13px; }
+.pv-keys > span { display: block; font-size: 12px; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
+.pv-note { margin: 10px 0 0; font-size: 13px; background: #fff7e0; border-left: 3px solid #f59e0b; padding: 6px 10px; border-radius: 4px; }
+.pv-bar { display: flex; height: 34px; border-radius: 8px; overflow: hidden; font-size: 12px; font-weight: 700; color: #fff; }
+.pv-bar span { display: grid; place-items: center; min-width: 34px; white-space: nowrap; overflow: hidden; padding: 0 4px; }
+.pv-bar .w { background: var(--win); } .pv-bar .d { background: var(--draw); } .pv-bar .l { background: var(--loss); }
+.pv-score { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-top: 12px; }
+.pv-score > div { background: var(--paper); border-radius: 10px; padding: 8px 12px; }
+.pv-score small { display: block; font-size: 12px; color: var(--muted); }
+.pv-score b { font-size: 17px; }
+.pv-sub { font-size: 14px; margin: 16px 0 8px; }
+.pv-sub small { font-weight: 400; }
+.pv-h2h { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.h2h-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.pv-out { list-style: none; margin: 0; padding: 0; }
+.pv-out li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.pv-out .pos, .xi-row .pos { width: 26px; font-size: 11px; font-weight: 700; color: var(--muted); flex: none; }
+.pv-out .badge { margin-left: auto; cursor: help; white-space: normal; }
+.pv-xi { display: flex; flex-direction: column; gap: 8px; }
+.xi-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.xi-p { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; cursor: help; }
+.xi-p.conf-hi { background: var(--red); color: #fff; }
+.xi-p.conf-mid { background: #f3c4bf; color: var(--red-deep); }
+.xi-p.conf-lo { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+
+/* ---------- 메인: 뉴스 카드 ---------- */
+.news-filters { margin-bottom: 8px; }
+.news { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.news:last-of-type { border-bottom: 0; }
+.news-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 4px; }
+.news-meta .src { font-weight: 700; padding: 1px 7px; border-radius: 5px; background: var(--black); color: #fff; }
+.news-meta .src.t2 { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+.news-meta .jr { font-weight: 700; color: var(--blue); }
+.news-title { display: block; font-weight: 700; font-size: 15px; line-height: 1.35; text-decoration: none; }
+.news-title:hover { color: var(--red); text-decoration: underline; }
+.news-sum { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.news-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
+.ntag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+.ntag.official { background: #e7f6ec; border-color: #bfe5cb; color: #17733a; }
+.ntag.rumour { background: #fff3d6; border-color: #f5d68c; color: var(--gold-ink); }
+.news-more { width: 100%; margin-top: 8px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); font: 700 13px var(--font); cursor: pointer; }
+.news-more:hover { background: #eee9e3; }
