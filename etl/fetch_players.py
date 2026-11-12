@@ -10,6 +10,7 @@
     player_availability  부상·징계·출전 가능성
     player_season_stats  PL 시즌 합계 (competition_code='PL')
     player_match_stats   PL 경기별 출전시간·골·도움·카드·태클
+    match_lineups        PL 경기별 맨유 출전 선수 선발/교체 (FPL 'starts') — 벤치 미출전·포메이션은 FPL 에 없음
     matches.match_fpl_id FPL 경기 id 연결 (경기 상세 수집용)
 
 * 시즌 합계는 '맨유 경기'만 더해서 계산 → 시즌 중 이적해 온 선수의 전 소속팀 기록은 제외됨.
@@ -160,6 +161,15 @@ def main() -> None:
                              yellow=excluded.yellow, red=excluded.red""",
                         (match_id, pid, h["minutes"], h["goals_scored"], h["assists"], h.get("tackles"),
                          h["yellow_cards"], h["red_cards"]))
+                    con.execute(
+                        """INSERT INTO match_lineups (match_id, team_side, player_name, player_id, shirt_number,
+                               position, is_starter)
+                           VALUES (?, 'MU', ?, ?, ?, ?, ?)
+                           ON CONFLICT(match_id, team_side, player_name) DO UPDATE SET
+                             player_id=excluded.player_id, shirt_number=excluded.shirt_number,
+                             position=excluded.position, is_starter=excluded.is_starter""",
+                        (match_id, e["web_name"], pid, e.get("squad_number"), POS.get(e["element_type"]),
+                         1 if h.get("starts") else 0))
 
             con.execute(
                 """INSERT INTO player_season_stats (player_id, season, competition_code, appearances, starts,

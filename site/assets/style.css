@@ -163,6 +163,15 @@ img.brand-mark { width: 46px; height: 46px; border-radius: 0; background: none; 
 .badge.vf-none { background: var(--paper); color: var(--muted); border: 1px solid var(--line); cursor: help; }
 .badge.vf-bad { background: #f59e0b; color: #fff; cursor: help; }
 .match-list.managers { max-height: 640px; overflow-y: auto; }
+.lineup { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; }
+.lineup h3 { font-size: 14px; margin: 0 0 6px; }
+.lineup ul { list-style: none; margin: 0; padding: 0; }
+.lineup li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.lineup .pos { width: 26px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.lineup .min { margin-left: auto; font-size: 12px; color: var(--muted); }
+.card-y, .card-r { display: inline-block; width: 9px; height: 12px; border-radius: 2px; background: #f5c400; vertical-align: -1px; }
+.card-r { background: var(--red); }
+@media (max-width: 640px) { .lineup { grid-template-columns: 1fr; } }
 
 /* ---------- match list ---------- */
 .match-list { list-style: none; margin: 0; padding: 0; }

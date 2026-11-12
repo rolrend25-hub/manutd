@@ -92,6 +92,16 @@ def main() -> None:
                           FROM match_analyses a JOIN matches m ON m.id = a.match_id WHERE m.season = ?""",
                   (season,)):
         details.setdefault(str(r.pop("match_id")), {"events": []}).update(r)
+    # 출전 선수 (PL, FPL): 선발/교체 + 출전시간·골·도움·카드
+    for r in rows(con, """SELECT l.match_id, l.player_name AS name, l.position AS pos, l.shirt_number AS no,
+                                 l.is_starter AS starter, s.minutes, s.goals, s.assists, s.yellow, s.red
+                          FROM match_lineups l JOIN matches m ON m.id = l.match_id
+                          LEFT JOIN player_match_stats s ON s.match_id = l.match_id AND s.player_id = l.player_id
+                          WHERE m.season = ? AND l.team_side = 'MU'
+                          ORDER BY l.match_id, l.is_starter DESC,
+                                   CASE l.position WHEN 'GK' THEN 1 WHEN 'DF' THEN 2 WHEN 'MF' THEN 3 ELSE 4 END,
+                                   s.minutes DESC""", (season,)):
+        details.setdefault(str(r.pop("match_id")), {"events": []}).setdefault("lineup", []).append(r)
     data["match_details"] = details
 
     # 화면 우측 상단 표시용: 모든 수집 작업 중 가장 최근 성공 완료 시각

@@ -5,7 +5,9 @@
     python etl/fetch_cups.py --season 2025   # 특정 시즌 (시작 연도)
 
 * football-data 무료 플랜에 없는 국내 컵 대회 보완용. 출처: 위키백과 (CC BY-SA 4.0)
-* 위키 표에는 킥오프 '시각'이 없음 → kickoff_confirmed=0 (캘린더는 종일 일정, 카톡 리마인드 없음)
+* 시즌 문서 표에는 킥오프 '시각'이 없음 → 대회 문서('<시즌> FA Cup' / '<시즌> EFL Cup' / '<연도> FA Community Shield')의
+  경기 박스에서 날짜·시각(BST/GMT)을 찾아 채움 → kickoff_confirmed=1 (캘린더 시간 일정, 카톡 리마인드 발송)
+  못 찾으면 kickoff_confirmed=0 (캘린더 종일 일정, 리마인드 없음). 시간 확정·변경은 카톡 안내(KICKOFF_CHANGE) 대기열
 * 경기 식별: matches.match_ext_id = 'wiki:<시즌>:<대회>:<라운드>'
 * 득점자(분 포함)는 맨유 득점만 표에 있음 → match_events(goal / 상대 자책골)로 저장
 """
@@ -18,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import SyncLog, connect, season_label, utc_now  # noqa: E402
+from fetch_fixtures import queue_schedule_notice  # noqa: E402
 import wiki  # noqa: E402
 
 LONDON = ZoneInfo("Europe/London")
@@ -113,6 +116,49 @@ def parse_tables(page: str, season: str) -> list[dict]:
     return out
 
 
+ZONES = {"BST": LONDON, "GMT": LONDON, "UTC": timezone.utc, "CET": ZoneInfo("Europe/Paris"),
+         "CEST": ZoneInfo("Europe/Paris")}
+BOX_SPLIT = re.compile(r'<div class="vevent"|<div[^>]*class="footballbox"')
+
+
+def cup_articles(start: int, codes: set) -> dict:
+    yy = f"{start}–{(start + 1) % 100:02d}"
+    titles = {"FAC": f"{yy} FA Cup", "ELC": f"{yy} EFL Cup", "CS": f"{start} FA Community Shield"}
+    return {c: titles[c] for c in codes if c in titles}
+
+
+def cup_kickoffs(start: int, codes: set) -> tuple[dict, int]:
+    """대회 문서 경기 박스 → {(대회, 영국 날짜 'YYYY-MM-DD'): 킥오프 UTC datetime} (맨유 경기만), 요청 수."""
+    out, calls = {}, 0
+    for code, title in cup_articles(start, codes).items():
+        try:
+            page, _ = wiki.page_html(title)
+            calls += 1
+        except RuntimeError as e:
+            print(f"  (킥오프 시각) {title} 문서 없음/오류 → 건너뜀: {str(e)[:80]}")
+            continue
+        found = 0
+        parts = BOX_SPLIT.split(page)[1:]
+        for chunk in parts:
+            text = wiki.clean(re.sub(r"<[^>]+>", " ", chunk[:6000]))
+            text = re.sub(r"\s+", " ", text)
+            if "Manchester United" not in text:
+                continue
+            d = re.search(r"(\d{1,2}) ([A-Z][a-z]+) (\d{4})", text)
+            t = re.search(r"\b(\d{1,2}):(\d{2})\s*(BST|GMT|UTC|CEST|CET)\b", text)
+            if not (d and t):
+                continue
+            try:
+                day = datetime.strptime(" ".join(d.groups()), "%d %B %Y")
+            except ValueError:
+                continue
+            local = day.replace(hour=int(t.group(1)), minute=int(t.group(2)), tzinfo=ZONES[t.group(3)])
+            out[(code, local.astimezone(LONDON).date().isoformat())] = local.astimezone(timezone.utc)
+            found += 1
+        print(f"  (킥오프 시각) {title}: 맨유 경기 시각 {found}개")
+    return out, calls
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
@@ -128,8 +174,9 @@ def main() -> int:
     print(f"[위키백과] {title} (rev {rev}) → 컵 경기 {len(rows)}개")
 
     now = datetime.now(timezone.utc)
+    times, calls = cup_kickoffs(start, {r["code"] for r in rows})
     with SyncLog(con, "wikipedia", f"cups {season}") as log:
-        log.api_calls = 1
+        log.api_calls = 1 + calls
         con.execute("INSERT OR IGNORE INTO seasons (season, start_year) VALUES (?, ?)", (season, start))
         for r in rows:
             team_id, opp_name = find_team(con, r["opp"])
@@ -140,9 +187,10 @@ def main() -> int:
             if done and n_ev and n_ev != mu_g:
                 print(f"  ⚠ {r['ext_id']} 득점자 {n_ev}명 ≠ 스코어 {mu_g} → 득점자 생략")
                 r["events"] = []
+            ko = times.get((r["code"], r["kickoff"].astimezone(LONDON).date().isoformat()))
             row = {
                 "season": season, "competition_code": r["code"], "stage": r["round"], "matchday": None,
-                "kickoff_utc": r["kickoff"].strftime("%Y-%m-%dT%H:%M:%SZ"), "kickoff_confirmed": 0,
+                "kickoff_utc": (ko or r["kickoff"]).strftime("%Y-%m-%dT%H:%M:%SZ"), "kickoff_confirmed": 1 if ko else 0,
                 "home_away": r["home_away"], "opponent_id": team_id, "opponent_name": opp_name,
                 "venue": HOME_VENUE if r["home_away"] == "H" else None,
                 "status": "FINISHED" if done else "SCHEDULED",
@@ -162,6 +210,8 @@ def main() -> int:
             else:
                 mid = old["id"]
                 changed = [c for c in cols if old[c] != row[c]]
+                if changed:
+                    queue_schedule_notice(con, old, row)  # 다가오는 경기 시간 확정·변경 → 카톡 안내
                 state = "변경" if changed else "동일"
                 if changed:
                     con.execute(f"UPDATE matches SET {', '.join(f'{c}=?' for c in changed)}, updated_at=? WHERE id=?",
@@ -173,7 +223,7 @@ def main() -> int:
                             (mid, e["minute"], e["extra_minute"], e["team_side"], e["event_type"],
                              e["player_name"], e["detail"]))
             score = f"{mu_g}-{op_g}" + (f" (PK {r['mu_pens']}-{r['op_pens']})" if r["mu_pens"] is not None else "") if done else "예정"
-            print(f"  {state} {r['code']:<3} {r['round']:<14} {row['kickoff_utc'][:10]} {r['home_away']} vs {opp_name:<22} {score}"
+            print(f"  {state} {r['code']:<3} {r['round']:<14} {row['kickoff_utc'][:16] if ko else row['kickoff_utc'][:10] + ' (시각 미정)'} {r['home_away']} vs {opp_name:<22} {score}"
                   + (f"  득점: {', '.join(e['player_name'] for e in r['events'])}" if r["events"] else ""))
             if state != "동일":
                 log.rows += 1

@@ -338,6 +338,19 @@
     for (const n of list) c.set(n, (c.get(n) || 0) + 1);
     return [...c].map(([n, k]) => esc(n) + (k > 1 ? ` <span class="x">×${k}</span>` : "")).join("<br>");
   };
+  function lineupCard(det, m) {
+    const lu = det.lineup || [];
+    if (m.comp !== "PL" || m.status !== "FINISHED") return "";
+    if (!lu.length) return `<div class="card span-12"><h2>출전 선수 <small>United line-up</small></h2><p class="muted">Line-up will appear after the next data sync.</p></div>`;
+    const ic = (p) => [p.goals ? "⚽".repeat(p.goals) : "", p.assists ? `<small class="muted">A${p.assists > 1 ? p.assists : ""}</small>` : "",
+      p.yellow ? '<span class="card-y"></span>' : "", p.red ? '<span class="card-r"></span>' : ""].join(" ");
+    const li = (p) => `<li><span class="pos">${esc(p.pos || "")}</span><b>${esc(p.name)}</b> ${ic(p)}<span class="min">${p.minutes != null ? p.minutes + "'" : ""}</span></li>`;
+    const xi = lu.filter((p) => p.starter), subs = lu.filter((p) => !p.starter);
+    return `<div class="card span-12"><h2>출전 선수 <small>United line-up</small></h2>
+      <div class="lineup"><div><h3>Starting XI <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
+      <div><h3>Substitutes used <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">None</li>'}</ul></div></div>
+      <p class="small muted" style="margin:10px 0 0">Source: Fantasy Premier League (starts &amp; minutes). Unused substitutes and formation are not available${xi.length !== 11 ? "; players who have since left the club may be missing" : ""}.</p></div>`;
+  }
   function pageMatch(id) {
     const m = matches.find((x) => String(x.id) === String(id));
     if (!m) return `${title("경기 상세")}<div class="card empty"><b>Match not found</b><a href="#fixtures">Back to fixtures</a></div>`;
@@ -381,6 +394,7 @@
           ${bonus.length ? `<ul class="bonus">${bonus.map((b) => `<li><b>${esc(b.detail)}</b><span>${esc(b.player)}${b.side === "MU" ? "" : ` <small class="muted">(${esc(m.opponent)})</small>`}</span></li>`).join("")}</ul>
             <p class="small muted" style="margin:10px 0 0">FPL bonus points (3 = best in the match).${det.potm ? ` United's best: <b>${esc(det.potm)}</b>.` : ""}</p>` : `<p class="muted">Not available.</p>`}
         </div>
+        ${lineupCard(det, m)}
         <div class="card span-12"><h2>경기 요약</h2>
           ${det.summary ? `<p class="summary">${esc(det.summary)}</p><p class="small muted" style="margin:8px 0 0">Automatically generated from match data (${esc(det.model || "template")}).</p>` : `<p class="muted">${done ? "Summary will be generated after the next data sync." : "Available after full time."}</p>`}
         </div>

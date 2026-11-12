@@ -186,6 +186,19 @@ def check_players(con, season):
         err(f"선수 시즌 기록 음수/모순 {bad}건")
 
 
+def check_lineups(con, season):
+    for (ko, opp, n, xi) in q(con, """SELECT m.kickoff_utc, m.opponent_name, COUNT(l.player_name), SUM(l.is_starter)
+                                      FROM matches m LEFT JOIN match_lineups l ON l.match_id = m.id AND l.team_side='MU'
+                                      WHERE m.season=? AND m.competition_code='PL' AND m.status='FINISHED'
+                                        AND m.match_fpl_id IS NOT NULL GROUP BY m.id""", (season,)):
+        if n == 0:
+            warn(f"{ko[:10]} vs {opp}: 출전 선수(라인업) 없음 (FPL 반영 지연 가능)")
+        elif xi > 11:
+            err(f"{ko[:10]} vs {opp}: 선발 {xi}명 (11명 초과)")
+        elif xi < 11:
+            warn(f"{ko[:10]} vs {opp}: 선발 {xi}명 — 시즌 중 이적한 선수는 FPL 맨유 명단에 없어 빠질 수 있음")
+
+
 def check_managers(con):
     cur = q(con, "SELECT name FROM managers WHERE end_date IS NULL")
     if len(cur) != 1:
@@ -285,6 +298,7 @@ def main() -> int:
         check_mu_cross(con, season)
         check_events(con, season)
         check_players(con, season)
+        check_lineups(con, season)
         check_managers(con)
         check_transfers(con, season)
         check_sync_log(con)
