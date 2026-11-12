@@ -8,6 +8,7 @@
 ⚠ 경고 → 배포는 진행, 알림만
 """
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -15,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "data" / "manutd.db"
+DB_PATH = Path(os.environ.get("MANUTD_DB") or ROOT / "data" / "manutd.db")  # MANUTD_DB: 테스트용 DB 복사본
 SITE_DATA = ROOT / "site" / "data"
 ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 MU_FD = 66
@@ -32,11 +33,17 @@ def q(con, sql, args=()):
     return con.execute(sql, args).fetchall()
 
 
+def preseason(con, season) -> bool:
+    """시즌 전환 직후 ~ 첫 경기 전: 일정·순위표가 아직 비어 있을 수 있음 → 일부 오류를 경고로 낮춤."""
+    return q(con, "SELECT COUNT(*) FROM matches WHERE season=? AND status='FINISHED'", (season,))[0][0] == 0
+
+
 def check_matches(con, season):
     ms = q(con, "SELECT id, competition_code, matchday, kickoff_utc, status, mu_score, opp_score, result, "
                 "opponent_name, match_fd_id, match_fpl_id FROM matches WHERE season=?", (season,))
     if not 30 <= len(ms) <= 80:
-        err(f"경기 수 비정상: {len(ms)}경기 (정상 범위 30~80)")
+        (warn if preseason(con, season) and len(ms) < 30 else err)(
+            f"경기 수 비정상: {len(ms)}경기 (정상 범위 30~80)" + (" — 새 시즌 개막 전" if preseason(con, season) else ""))
     pl = [m for m in ms if m[1] == "PL"]
     if len(pl) > 38:
         err(f"PL 경기가 38경기 초과: {len(pl)}")
@@ -72,7 +79,7 @@ def check_tables(con, season):
                       "goal_diff, points FROM league_table WHERE season=? AND competition_code=?",
                  (season, comp))
         if len(rows) != n:
-            (err if comp == "PL" else warn)(f"{comp} 순위표 팀 수 {len(rows)} (기대 {n})")
+            (err if comp == "PL" and not preseason(con, season) else warn)(f"{comp} 순위표 팀 수 {len(rows)} (기대 {n})")
         if sorted(r[0] for r in rows) != list(range(1, len(rows) + 1)):
             err(f"{comp} 순위표 순위 번호가 1~{len(rows)} 연속이 아님")
         for (pos, team, p, w, d, l, gf, ga, gd, pts) in rows:
@@ -92,7 +99,7 @@ def check_mu_cross(con, season):
                 "FROM league_table l JOIN teams t ON t.id=l.team_id "
                 "WHERE l.season=? AND l.competition_code='PL' AND t.team_fd_id=?", (season, MU_FD))
     if not mu:
-        err("PL 순위표에 맨유가 없음")
+        (warn if preseason(con, season) else err)("PL 순위표에 맨유가 없음")
         return
     p, w, d, l, gf, ga, pts, pos = mu[0]
     fin = q(con, "SELECT mu_score, opp_score FROM matches WHERE season=? AND competition_code='PL' "
@@ -166,7 +173,9 @@ def check_events(con, season):
 
 def check_players(con, season):
     n = q(con, "SELECT COUNT(*) FROM squad_memberships WHERE season=? AND status='active'", (season,))[0][0]
-    if not 20 <= n <= 45:
+    if n == 0:
+        warn("현재 시즌 선수 명단 없음 — 시즌 전환 직후 FPL 새 시즌 대기 중이면 정상")
+    elif not 20 <= n <= 45:
         err(f"현재 스쿼드 인원 비정상: {n}명 (정상 20~45)")
     for (name, c) in q(con, "SELECT COALESCE(known_as, full_name), COUNT(*) FROM players "
                             "WHERE player_fpl_code IS NOT NULL GROUP BY player_fpl_code HAVING COUNT(*)>1"):

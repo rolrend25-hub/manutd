@@ -60,6 +60,7 @@ GitHub 저장소 (private)
 - [x] `etl/fetch_players.py` — 스쿼드 34명·PL 시즌 합계·경기별 기록(출전시간·골·도움·카드·태클)·부상/징계 → `players`, `squad_memberships`, `player_season_stats`, `player_match_stats`, `player_availability`(신규), `matches.match_fpl_id` 연결 (2026-11-09 완료). 맨유 경기만 집계. 웹 '선수' 페이지 반영
 - [x] `etl/fetch_match_details.py` (2026-11-09) — PL 종료 경기 양 팀 득점·도움·자책골·PK·카드·FPL 보너스 → `match_events` (분 정보 없음). `details_synced` 1=FPL 확정. 검증: 상세 골 수 = 스코어. 챔스 등 PL 외 대회는 무료 데이터에 상세 없음 → 스코어만
 - [x] (2026-11-09) `etl/fetch_transfers.py` — 위키백과 시즌 문서 Transfers 표(In/Out/Loan) → `transfers` (2026-27 41건, 2025-26 47건). 매 동기화 실행, 위키에서 사라진 행 삭제, 실패해도 전체 동기화는 계속(경고). 웹 '이적' 페이지(시즌별 영입·방출·임대)
+- [x] (2026-11-12) `etl/sync_honours.py` — 우승 기록 자동 계산: 시즌 기록(리그 1위·FA컵/리그컵/유럽대회·슈퍼컵·인터컨티넨털컵·클럽월드컵 Winners) + 진행 중 시즌 결승 승리(승부차기 포함, 커뮤니티실드 포함) → 없으면 `honours` 추가(note 'auto: …'), 기존 기록인데 근거 없으면 ⚠ (커뮤니티실드 과거분은 근거 데이터 없어 비교 제외). 기존 47건 전부 일치 확인
 - [x] (2026-11-12) `etl/fetch_club.py` — 매 동기화 실행. ① 감독: football-data `/teams/66` 공식 현직 감독 + 위키백과 'List of Manchester United F.C. managers' 전체 33명(재임 기간·전적·임시 감독) → `managers`. 위키 현직 = 공식일 때만 교체, 다르면 기존 유지 + ⚠ 알림, 감독 교체 시 ⚠ 알림 1회 (Amorim → Carrick 2026-01-13 반영) ② 이적 교차검증: 위키 이적 ↔ 공식 1군 명단(football-data)·FPL 상태(입단일·이탈·임대) → `transfers.verify_status` (verified 공식 확인 / consistent 모순 없음 / unverified 확인 불가(유스 등) / conflict 불일치), 위키 누락 의심(FPL 입단·이탈인데 위키 기록 없음) → `transfer_checks`. 새 불일치·누락만 ⚠ 알림(GitHub 이슈), 해소 시 자동 해소 처리. 현재 시즌만 검증. 웹 '이적' Check 열·'확인 필요' 목록, '역사' 역대 감독 전체·전적
 - [ ] (선택) API-Football 무료로 2022-23~2024-25 시즌 라인업·이벤트 백필
 - [x] (2026-11-09) `etl/backfill_history.py` — 위키백과 'List of Manchester United F.C. seasons' → 1888-89~2025-26 128시즌 리그 성적·FA컵·리그컵·유럽대회·최다 득점자 (`season_standings`). 검증: W+D+L=경기 수, 승점(1990-91 1점 감점 예외), 1992년 이후 기존 순위 일치. 웹 '시즌 기록' 시대별 필터
@@ -89,7 +90,8 @@ GitHub 저장소 (private)
 - [x] GitHub Actions `.github/workflows/sync-and-deploy.yml` (2026-11-09 첫 실행 성공): 매일 05:00 UTC 전체 동기화 + 30분마다 점검·경기 종료 결과 대기 시 동기화 → 검증 통과 시에만 커밋·Pages 배포. 수동 실행 시 `test_alert` 옵션으로 알림 테스트 가능
 - [x] 매 실행 검증 (2026-11-09): ① `scripts/check_privacy.py` 개인정보·비밀값·미허가 파일(허용 경로·`docs/approved_assets.txt` 미디어 승인) — 저장소 전체 + 커밋 직전 + 로컬 pre-commit 훅(`.githooks`) ② `scripts/check_sources.py` API 키·응답 구조 ③ `scripts/validate_data.py` 정합성·football-data↔FPL 교차검증·직전 커밋 DB 비교
 - [x] 문제 시 알림 (2026-11-09 테스트: 이슈 #1 생성·소유자 할당 → 정상 실행 후 자동 닫힘 확인): `scripts/notify_status.py` → GitHub 이슈(소유자 할당 → 이메일·모바일 앱 푸시), 같은 문제 반복 알림 생략, 복구 시 자동 닫힘. 카톡 오류 알림은 STEP 3 카카오 토큰 후 추가
-- [ ] 시즌 전환 자동 처리 (매년 7월 새 시즌 생성, `is_current` 전환)
+- [x] (2026-11-12) 시즌 전환 자동 처리 `etl/season_rollover.py` — 매 동기화 맨 앞. football-data PL currentSeason 시작 연도 = 현재 시즌+1 이고 6월 1일 이후면 새 시즌 추가·`is_current` 전환 → 지난 시즌 최종 순위(is_final)·결과·컵·이적 재수집 + `backfill_history.py` → ⚠ 알림 1회. FPL 이 아직 지난 시즌이면 `fetch_players.py` 는 대기(덮어쓰기 방지). 검증은 새 시즌 개막 전(종료 경기 0) 일정·순위표 비어 있음을 경고로 처리. 시뮬레이션(복사본 DB, `MANUTD_DB`·`--force-year`)으로 확인
+- [x] (2026-11-12) 역대 시즌 기록 매일 갱신 — `backfill_history.py` 를 매 동기화에 포함 (위키 수정·지난 시즌 결과 반영, 현재 시즌은 건드리지 않음)
 
 ## 결정 사항 (2026-11-08 확정)
 1. 호스팅: **GitHub Pages + GitHub Actions** (무료, 정적). 무료 계정은 private 저장소 Pages 불가 → **public 저장소**로 결정 (2026-11-09). 비밀값은 Actions Secrets 에만, 커밋 전 자동 검사로 차단

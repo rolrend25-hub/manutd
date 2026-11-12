@@ -1,5 +1,6 @@
 """ETL 공용 함수: .env 로드, HTTP(JSON) 요청, DB 연결, sync_log 기록."""
 import json
+import os
 import sqlite3
 import sys
 import time
@@ -9,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "data" / "manutd.db"
+DB_PATH = Path(os.environ.get("MANUTD_DB") or ROOT / "data" / "manutd.db")  # MANUTD_DB: 테스트용 DB 복사본
 USER_AGENT = "mufc-fan-site/0.1"
 
 MUFC_FD = 66  # football-data.org 맨유 team id

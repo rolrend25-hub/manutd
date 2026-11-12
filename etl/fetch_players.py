@@ -49,11 +49,19 @@ def main() -> None:
     args = ap.parse_args()
 
     con = connect()
-    season = con.execute("SELECT season FROM seasons WHERE is_current=1").fetchone()["season"]
+    cur = con.execute("SELECT season, start_year FROM seasons WHERE is_current=1").fetchone()
+    season = cur["season"]
 
     with SyncLog(con, "fpl", "players") as log:
         boot = get_json(f"{BASE}/bootstrap-static/")
         log.api_calls += 1
+        # 시즌 전환 직후(6~7월) FPL 이 아직 지난 시즌 데이터면 새 시즌 명단으로 저장하지 않음
+        deadlines = [e.get("deadline_time") or "" for e in boot.get("events", [])]
+        fpl_year = int(deadlines[0][:4]) if deadlines and deadlines[0][:4].isdigit() else None
+        if fpl_year and fpl_year != cur["start_year"]:
+            log.message = f"FPL 시즌 {fpl_year} ≠ 현재 시즌 {season} → 대기"
+            print(f"[FPL] 아직 {fpl_year} 시즌 데이터 (현재 시즌 {season}) → 선수 동기화 건너뜀, FPL 시즌 전환 대기")
+            return
         team = next(t for t in boot["teams"] if t["code"] == MUFC_FPL_CODE)
         squad = [e for e in boot["elements"] if e["team"] == team["id"]]
         print(f"[FPL] {season} {team['name']} 선수 {len(squad)}명")
@@ -114,7 +122,6 @@ def main() -> None:
             log.message = f"{season} quick players={len(squad)}"
             con.commit()
             print("  --quick: 스쿼드·부상 정보만 갱신")
-            con.close()
             return
 
         # ---- 3) 선수별 경기 기록 → 경기별 스탯 + 시즌 합계 ----
