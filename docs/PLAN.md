@@ -10,7 +10,7 @@
 | 선수 시즌 통계·라인업·경기 이벤트·팀 스탯·이적 | **API-Football** (api-sports.io) v3 | 무료 100회/일, Pro $19/월 | **필수** | 무료 플랜은 조회 가능한 시즌 범위가 제한됨 → 키 발급 후 대시보드에서 2026 시즌 접근 가능 여부 먼저 확인. 안 되면 Pro 1개월 단위 결제 고려 |
 | PL 선수 스탯 보조 (골·도움·출전시간·xG 등) | **Fantasy Premier League** 비공식 API (`/api/bootstrap-static/`, `/api/fixtures/`) | 무료, 키 없음 | 권장 | 비공식이라 구조 변경 가능. 현재 2026-27 시즌 제공 중. PL 경기만 |
 | 과거 시즌 기록 (1886~) | Wikipedia "List of Manchester United F.C. seasons" + football-data.co.uk CSV | 무료 | 1회성 | 매년 바뀌지 않으므로 한 번 수집해서 DB에 저장 |
-| 경기 분석 글 생성 | **Claude API** (Anthropic) | 종량제 (경기당 수 센트 수준) | 필수(분석 기능) | 경기 이벤트·스탯을 넣어 한국어 분석 생성 |
+| 경기 분석 글 생성 | ~~Claude API~~ → **규칙 기반 템플릿** (`scripts/summarize_match.py`) | 무료 | 사용 안 함 (2026-11-12 결정) | AI 호출 없이 스코어·이벤트·스탯으로 요약 생성. 결정 사항 4 참고 |
 | 카카오톡 리마인드·결과 전송 | **카카오 메시지 API – 나에게 보내기** (`/v2/api/talk/memo/default/send`) | 무료 | 필수 | 개인 앱으로 사용 가능. 친구에게 보내기는 권한 심사 필요 → 본인에게만 전송 권장. 액세스 토큰 짧음, 리프레시 토큰 2개월(만료 1개월 전 갱신 시 새 값 반환 → 저장 로직 필요) |
 | 스마트폰 알람 | **Google Calendar API** (권장) 또는 ICS 구독 피드 | 무료 | 필수 | 일정에 알림(1일 전/1시간 전) 넣으면 폰 기본 알림으로 울림. 카카오 톡캘린더 API는 별도 권한 신청 필요해서 2순위 |
 | 시간 변환 | 라이브러리 (Python `zoneinfo`) | – | – | API 불필요. UTC 저장 → Europe/London(BST 반영)·Asia/Seoul 변환 |
@@ -23,7 +23,7 @@
 GitHub 저장소 (private)
  ├─ data/manutd.db (SQLite)            ← 이번에 설계한 DB
  ├─ etl/*.py  (API 수집 → DB upsert)
- ├─ notify/*.py (카톡·캘린더·Claude 분석)
+ ├─ notify/*.py (카톡·캘린더)
  ├─ site/  (정적 웹페이지, DB → JSON export 읽어서 표시)
  └─ .github/workflows/*.yml  (GitHub Actions cron 으로 자동 실행)
 ```
@@ -71,7 +71,7 @@ GitHub 저장소 (private)
 ### STEP 2. 웹페이지
 - [x] (초안 2026-11-09) 디자인: 레드(#DA291C)·블랙·화이트 + 골드/블루 포인트, Anton + Noto Sans KR → `site/assets/style.css`
 - [ ] 로고·올드 트래포드 이미지 기반 헤더 (초안은 'MU' 텍스트 마크 + CSS 그라데이션으로 대체 중)
-- [~] 페이지 초안 `site/index.html` + `site/assets/app.js`: 홈(카운트다운·KST/영국시간·최근결과·다가오는 경기) / 일정·결과(대회 필터) / 순위(PL·UCL) / 역사(우승·연표·감독) / 시즌 기록 완료. 선수·이적·경기 분석은 데이터 수집 후
+- [x] (2026-11-12) 페이지 `site/index.html` + `site/assets/app.js`: 홈(다음 경기 바·프리뷰·뉴스) / 일정·결과(대회 필터) / 순위(PL·UCL) / 선수(포지션 필터) / 이적(시즌별·Check 열) / 역사(우승·연표·감독) / 시즌 기록(시대 필터) / 경기 상세 `#match/<id>`(득점·카드·출전 선수·템플릿 요약)
 - [x] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) + GitHub Pages 자동 배포
 - [x] 경기 상세 페이지 `#match/<id>` (2026-11-09): 스코어 클릭 → 득점·도움·카드·최고 활약·경기 요약
 - [x] 공식 엠블럼(football-data 이미지 링크, 저장소 미업로드)·헤드라인 한글/본문 영문 (2026-11-09)
@@ -90,7 +90,7 @@ GitHub 저장소 (private)
 ### STEP 4. 경기 결과 요약 + 카톡 전송 (무료 템플릿 방식)
 - [x] (2026-11-09 `scripts/summarize_match.py`, 웹은 영문 `analysis_md` + 카톡용 한글 `summary_ko`) 경기 종료 감지 → 상세 데이터 수집 → **규칙 기반 템플릿 요약** 생성 (스코어·득점자/도움·카드·FPL 보너스 상위 선수·순위 변동·다음 경기) → `match_analyses` (`model` 컬럼에 `template-v1` 기록)
 - [x] (2026-11-09) 카톡 결과 요약 + 웹 경기 페이지 링크 전송: `notify/send_kakao.py` RESULT — 결과·득점·카드·최고 활약·PL 순위·다음 경기. PL 은 FPL 상세 확정 후(늦으면 킥오프 6시간 뒤), 최근 2일 경기만. 200자 넘으면 카드 목록부터 생략
-- [ ] (나중에 선택) 요약 생성부를 교체 가능하게 분리해 두고, 원하면 Claude API 분석으로 전환
+- [x] ~~(나중에 선택) Claude API 분석으로 전환~~ → 하지 않음 (2026-11-12 결정: LLM 호출 추가 금지). 요약 생성부는 `scripts/summarize_match.py` 로 분리돼 있음
 
 ### STEP 5. 운영 자동화
 - [x] GitHub Actions `.github/workflows/sync-and-deploy.yml` (2026-11-09 첫 실행 성공): 매일 05:00 UTC 전체 동기화 + 30분마다 점검·경기 종료 결과 대기 시 동기화 → 검증 통과 시에만 커밋·Pages 배포. 수동 실행 시 `test_alert` 옵션으로 알림 테스트 가능
@@ -103,4 +103,4 @@ GitHub 저장소 (private)
 1. 호스팅: **GitHub Pages + GitHub Actions** (무료, 정적). 무료 계정은 private 저장소 Pages 불가 → **public 저장소**로 결정 (2026-11-09). 비밀값은 Actions Secrets 에만, 커밋 전 자동 검사로 차단
 2. 데이터 API: **무료 플랜만 사용**. API-Football 무료가 현재 시즌을 막으면 유료 결제 없이 **football-data + FPL** 로 구성 (PL 외 대회 선수 스탯·상세 이벤트는 제외 또는 football-data 범위 내에서만 표시). API-Football은 접근 가능한 범위에서 보조로만 사용
 3. 폰 알람: **Google 캘린더 API** (알림 1일 전·1시간 전)
-4. 경기 분석: **Claude API 미사용** (Pro 구독과 API는 별도 과금) → 무료 템플릿 요약. 추후 전환 가능하도록 구조만 분리
+4. 경기 분석: **Claude API 미사용** (Pro 구독과 API는 별도 과금) → 무료 템플릿 요약. 2026-11-12 재확인: 프리뷰·뉴스 포함 사이트 전체에 LLM 호출 추가하지 않음
