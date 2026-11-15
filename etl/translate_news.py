@@ -1,11 +1,12 @@
 """주요 뉴스 제목·요약 한글 번역 (DeepL API Free — 기계번역, LLM 아님).
 
 사용법:
-    python etl/translate_news.py            # 아직 번역 안 된(또는 원문이 바뀐) 기사만 번역
+    python etl/translate_news.py            # 주요 뉴스(featured, 5~8건) 중 아직 번역 안 된(또는 원문이 바뀐) 기사만 번역
     python etl/translate_news.py --usage    # 이번 달 DeepL 사용량만 출력
 
 * 키: 환경변수/.env 의 DEEPL_API_KEY (Free 키는 ':fx' 로 끝남 → api-free.deepl.com)
 * 무료 한도 월 50만 자. 한도의 90% 를 넘으면 번역을 멈추고 영어 원문 그대로 표시 (과금 없음)
+* 사이트에 보이는 주요 뉴스만 번역 (etl/fetch_news.py 가 고른 featured > 0) → 무료 한도 절약
 * 원문(제목+요약)이 바뀐 기사만 다시 번역 → 같은 기사를 두 번 번역하지 않음
 * 키가 없거나 DeepL 오류면 경고만 남기고 종료 (사이트는 영어 원문으로 표시)
 
@@ -35,6 +36,8 @@ def ensure_columns(con) -> None:
     for c in ("title_ko", "summary_ko", "ko_src"):
         if c not in cols:
             con.execute(f"ALTER TABLE news_items ADD COLUMN {c} TEXT")
+    if "featured" not in cols:
+        con.execute("ALTER TABLE news_items ADD COLUMN featured INTEGER DEFAULT 0")
 
 
 def fingerprint(title: str, summary: str | None) -> str:
@@ -90,7 +93,8 @@ def main() -> int:
 
     con = connect()
     ensure_columns(con)
-    rows = [r for r in con.execute("SELECT url, title, summary, ko_src FROM news_items ORDER BY published_utc DESC")
+    rows = [r for r in con.execute("SELECT url, title, summary, ko_src FROM news_items WHERE featured > 0 "
+                                    "ORDER BY featured")
             if r["ko_src"] != fingerprint(r["title"], r["summary"])]
     if not rows:
         print("  새로 번역할 기사 없음")

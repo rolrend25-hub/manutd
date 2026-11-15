@@ -6,6 +6,7 @@
          site/data/archive.js (지난 시즌 경기·상세, window.MUFC_ARCHIVE — '일정·결과'에서 지난 시즌 고를 때만 불러옴)
 """
 import json
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -80,6 +81,43 @@ def match_details(con, seasons: list[str]) -> dict:
     return details
 
 
+CUP_ROUND = [(r"final$", "F"), (r"semi", "SF"), (r"quarter", "QF"), (r"round.of.16|fourth|4th", "R4"),
+             (r"fifth|5th", "R5"), (r"sixth|6th", "R6"), (r"third|3rd", "R3"), (r"second|2nd", "R2"),
+             (r"first|1st", "R1")]
+
+
+def cup_status(matches: list[dict], comp: str) -> str | None:
+    """진행 중 시즌의 컵 성적을 경기 기록으로 계산 (위키백과 시즌 표는 시즌이 끝나야 채워짐).
+    탈락 → 'R3' 처럼 마지막 라운드, 결승 → 'Winners'/'Runners-up', 생존 중 → 'R3 (in progress)'."""
+    done = [m for m in matches if m["comp"] == comp and m["status"] == "FINISHED"]
+    if not done:
+        return None
+    last = max(done, key=lambda m: m["kickoff_utc"])
+    stage = (last["stage"] or "").lower().replace("_", " ")
+    rnd = next((code for rx, code in CUP_ROUND if re.search(rx, stage)), last["stage"])
+    won = last["result"] == "W" or (last["result"] == "D" and (last["mu_pens"] or 0) > (last["opp_pens"] or 0))
+    if rnd == "F":
+        return "Winners" if won else "Runners-up"
+    return f"{rnd} (in progress)" if won else rnd
+
+
+def fill_live_season(data: dict) -> None:
+    """현재 시즌 기록 행의 빈 칸(FA컵·리그컵·득점왕)을 이미 있는 경기·선수 데이터로 채움."""
+    row = next((r for r in data["seasons"] if r["season"] == data["season"] and not r["is_final"]), None)
+    if not row:
+        return
+    if not row["fa_cup"]:
+        row["fa_cup"] = cup_status(data["matches"], "FAC")
+    if not row["league_cup"]:
+        row["league_cup"] = cup_status(data["matches"], "ELC")
+    if not row["top_scorer"]:
+        best = max((p["goals"] for p in data["players"]), default=0)
+        if best:
+            row["top_scorer"] = " / ".join(p["known_as"] or p["full_name"] for p in data["players"] if p["goals"] == best)
+            row["top_scorer_goals"] = best
+            row["top_scorer_note"] = "PL only"
+
+
 def main() -> None:
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
@@ -136,6 +174,7 @@ def main() -> None:
             WHERE status='ok' GROUP BY source, job"""),
     }
     data["match_details"] = match_details(con, [season])
+    fill_live_season(data)
     # 지난 시즌 (경기 기록이 있는 시즌만) → archive.js 로 따로 (첫 화면 용량 유지)
     past = [r[0] for r in con.execute("SELECT DISTINCT season FROM matches WHERE season <> ? AND status='FINISHED' "
                                       "ORDER BY season DESC", (season,))]
@@ -150,9 +189,13 @@ def main() -> None:
     data["preview"] = json.loads(pv[0]) if pv else None
     ko = {r[1] for r in con.execute("PRAGMA table_info(news_items)")} >= {"title_ko", "summary_ko"} if has("news_items") else False
     ko_cols = "title_ko, summary_ko" if ko else "NULL AS title_ko, NULL AS summary_ko"  # etl/translate_news.py (DeepL)
+    # 주요 뉴스 5~8건만 (featured = 중요도 순위, etl/fetch_news.py). 옛 DB 라 열이 없으면 최신 8건
+    feat = has("news_items") and "featured" in {r[1] for r in con.execute("PRAGMA table_info(news_items)")}
     data["news"] = rows(con, f"""SELECT url, source, source_name, source_tier AS tier, title, summary, {ko_cols},
-                                      published_utc, tags, journalists, cluster FROM news_items
-                               ORDER BY published_utc DESC LIMIT 40""") if has("news_items") else []
+                                      published_utc, tags, journalists, cluster,
+                                      (SELECT COUNT(*) - 1 FROM news_items r WHERE r.cluster = n.cluster) AS related
+                               FROM news_items n {"WHERE featured > 0 ORDER BY featured" if feat
+                                                  else "ORDER BY published_utc DESC LIMIT 8"}""") if has("news_items") else []
 
     # 화면 우측 상단 표시용: 모든 수집 작업 중 가장 최근 성공 완료 시각
     data["synced_utc"] = max((s["finished_utc"] for s in data["last_sync"] if s["finished_utc"]),

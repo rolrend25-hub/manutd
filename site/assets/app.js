@@ -57,12 +57,14 @@
   const plRow = (D.tables.PL || []).find((r) => r.is_mu);
   const uclRow = (D.tables.UCL || []).find((r) => r.is_mu);
 
-  function scoreText(m) {
+  // muFirst: 경기 목록에서는 홈/원정과 관계없이 맨유 점수를 앞에 (예: 헐 원정 0-2 패 → "0 - 2 L")
+  function scoreText(m, muFirst) {
     if (m.mu_score == null) return "";
-    const [h, a] = m.home_away === "A" ? [m.opp_score, m.mu_score] : [m.mu_score, m.opp_score];
+    const flip = !muFirst && m.home_away === "A";
+    const [h, a] = flip ? [m.opp_score, m.mu_score] : [m.mu_score, m.opp_score];
     let s = `${h} - ${a}`;
     if (m.mu_pens != null) {
-      const [hp, ap] = m.home_away === "A" ? [m.opp_pens, m.mu_pens] : [m.mu_pens, m.opp_pens];
+      const [hp, ap] = flip ? [m.opp_pens, m.mu_pens] : [m.mu_pens, m.opp_pens];
       s += ` <small class="small">(pens ${hp}-${ap})</small>`;
     }
     return s;
@@ -72,7 +74,7 @@
     const done = m.status === "FINISHED";
     const live = m.status === "IN_PLAY" || m.status === "PAUSED";
     const right = done
-      ? `<a class="score score-link" href="#match/${m.id}" title="Match details">${scoreText(m)} ${chip(m.result)}<span class="more">Details ›</span></a>`
+      ? `<a class="score score-link" href="#match/${m.id}" title="United score first · match details">${scoreText(m, true)} ${chip(m.result)}<span class="more">Details ›</span></a>`
       : `<div class="score"><div class="tbd">${m.status === "POSTPONED" ? "Postponed" : m.kickoff_confirmed ? `UK ${hm(m.kickoff_utc, UK)}` : "TBC"}<br>${live ? "<b style='color:var(--red)'>LIVE</b>" : ""}</div></div>`;
     return `<li class="match">
       <div class="when"><b>${shortDate(m.kickoff_utc, KST)}</b><span>${m.kickoff_confirmed ? `KST ${hm(m.kickoff_utc, KST)}` : "Time TBC"}</span></div>
@@ -171,30 +173,20 @@
       </div>`;
   }
 
-  let newsFilter = "전체", newsAll = false;
-  const NEWS_FILTERS = ["전체", "감독", "이적", "부상", "경기", "공식"];
   function newsPanel() {
-    const all = (D.news || []).filter((n) => newsFilter === "전체" || (n.tags || "").split(",").includes(newsFilter));
-    const seen = new Set(), list = [];
-    for (const n of all) { if (seen.has(n.cluster)) continue; seen.add(n.cluster); list.push(n); }
-    const more = all.filter((n) => n.cluster !== n.url && seen.has(n.cluster));
-    const shown = newsAll ? list : list.slice(0, 10);
-    const card = (n) => {
-      const rel = more.filter((x) => x.cluster === n.cluster && x.url !== n.url);
-      return `<article class="news">
+    // 사이트에는 규칙 점수로 고른 주요 뉴스 5~8건만 옴 (etl/fetch_news.py, 같은 소식은 한 건으로 묶음)
+    const list = D.news || [];
+    const card = (n) => `<article class="news">
         <div class="news-meta"><span class="src t${n.tier}">${esc(n.source_name)}</span>${n.journalists ? n.journalists.split(",").map((j) => `<span class="jr">✎ ${esc(j)}</span>`).join("") : ""}<span class="muted">${n.published_utc ? ago(n.published_utc) : ""}</span></div>
         <a class="news-title" href="${esc(n.url)}" target="_blank" rel="noopener"${n.title_ko ? ` title="${esc(n.title)}"` : ""}>${esc(n.title_ko || n.title)}</a>
         ${n.title_ko ? `<div class="news-orig">${esc(n.title)}</div>` : ""}
         ${n.summary ? `<p class="news-sum">${esc(n.summary_ko || n.summary)}</p>` : ""}
-        <div class="news-tags">${(n.tags || "").split(",").filter(Boolean).map((t) => `<span class="ntag ${t === "공식" ? "official" : t === "루머" ? "rumour" : ""}">${esc(t)}</span>`).join("")}${rel.length ? `<span class="small muted">관련 기사 ${rel.length}건</span>` : ""}</div>
+        <div class="news-tags">${(n.tags || "").split(",").filter(Boolean).map((t) => `<span class="ntag ${t === "공식" ? "official" : t === "루머" ? "rumour" : ""}">${esc(t)}</span>`).join("")}${n.related > 0 ? `<span class="small muted">같은 소식 다른 기사 ${n.related}건</span>` : ""}</div>
       </article>`;
-    };
     return `<div class="card news-card">
-      <div class="section-head"><h2>주요 뉴스</h2><span class="small muted">${(D.news || []).length}건</span></div>
-      <div class="filters news-filters">${NEWS_FILTERS.map((f) => `<button data-news="${f}" class="${f === newsFilter ? "on" : ""}">${f}</button>`).join("")}</div>
-      ${shown.map(card).join("") || '<p class="muted">해당 뉴스가 없습니다.</p>'}
-      ${!newsAll && list.length > 10 ? `<button class="news-more" data-news-more="1">뉴스 더 보기 (${list.length - 10})</button>` : ""}
-      <p class="small muted" style="margin:10px 0 0">BBC Sport · The Guardian · Sky Sports · Manchester Evening News 공식 RSS의 제목·요약과 원문 링크입니다. ${(D.news || []).some((n) => n.title_ko) ? "한글 제목·요약은 DeepL 기계번역이라 어색하거나 틀릴 수 있습니다(영어 원제는 아래 회색 글씨). " : ""}태그와 기자 표시는 키워드 규칙으로 자동 분류해 틀릴 수 있습니다. 기자 이름은 기사에 언급된 경우에만 표시합니다.</p>
+      <div class="section-head"><h2>주요 뉴스</h2><span class="small muted">${list.length}건 · 중요도 순</span></div>
+      ${list.map(card).join("") || '<p class="muted">표시할 뉴스가 없습니다.</p>'}
+      <p class="small muted" style="margin:10px 0 0">BBC Sport · The Guardian · Sky Sports · Manchester Evening News 공식 RSS에서 최근 7일 기사 중 여러 매체 보도·공식 발표·감독·이적·부상·기자 언급 등을 점수로 매겨 상위 5~8건만 골랐습니다(자동 규칙이라 중요한 기사를 놓칠 수 있음). ${list.some((n) => n.title_ko) ? "한글 제목·요약은 DeepL 기계번역이라 어색하거나 틀릴 수 있습니다(영어 원제는 아래 회색 글씨). " : ""}태그와 기자 표시는 키워드 규칙으로 자동 분류해 틀릴 수 있습니다.</p>
     </div>`;
   }
 
@@ -263,7 +255,7 @@
     }
     if (cur) html += "</ul>";
     return `${title("일정 · 결과")}
-      <p class="page-sub">${esc(fixtureSeason)} season · Dates in Korea time (KST) with UK time alongside (daylight saving applied automatically)</p>
+      <p class="page-sub">${esc(fixtureSeason)} season · Dates in Korea time (KST) with UK time alongside (daylight saving applied automatically) · Scores show United first</p>
       ${seasonBar}
       <div class="filters">${comps.map((c) => `<button data-filter="${c}" class="${c === fixtureFilter ? "on" : ""}">${c === "ALL" ? "All" : compEn(c)}</button>`).join("")}</div>
       ${html || '<p class="muted">No matches recorded for this season yet.</p>'}
@@ -311,7 +303,8 @@
 
   let playerPos = "ALL", playerSort = { key: "goals", dir: -1 };
   const COLS = [
-    ["shirt_number", "#", 1], ["appearances", "Apps"], ["starts", "Starts"], ["minutes", "Mins"], ["goals", "Goals"], ["assists", "Assists"],
+    // 골·도움을 선수 이름 바로 옆에 → 모바일에서 옆으로 밀지 않아도 보임
+    ["shirt_number", "#", 1], ["goals", "Goals"], ["assists", "Assists"], ["appearances", "Apps"], ["starts", "Starts"], ["minutes", "Mins"],
     ["xg", "xG"], ["xa", "xA"], ["yellow_cards", "YC"], ["red_cards", "RC"],
   ];
 
@@ -344,10 +337,10 @@
       <div class="card"><div class="table-wrap"><table class="data players">
         <thead><tr>${th(COLS[0])}<th class="l">Player</th>${COLS.slice(1).map(th).join("")}</tr></thead>
         <tbody>${list.map((p) => `<tr class="${p.minutes ? "" : "dim"}">
-          <td>${p.shirt_number ?? ""}</td>
+          <td class="num">${p.shirt_number ?? ""}</td>
           <td class="team">${photo(p)}<div><b>${esc(pName(p))}</b>${p.avail && AVAIL[p.avail] && p.avail !== "u" ? ` <span class="dot ${AVAIL[p.avail][1]}" title="${esc(p.news)}"></span>` : ""}
             <div class="small muted">${p.position}${age(p.date_of_birth) !== "" ? " · Age " + age(p.date_of_birth) : ""}</div></div></td>
-          <td>${p.appearances}</td><td>${p.starts}</td><td>${p.minutes}</td><td class="pts">${p.goals}</td><td class="pts">${p.assists}</td>
+          <td class="pts">${p.goals}</td><td class="pts">${p.assists}</td><td>${p.appearances}</td><td>${p.starts}</td><td>${p.minutes}</td>
           <td>${p.xg != null ? p.xg.toFixed(2) : "–"}</td><td>${p.xa != null ? p.xa.toFixed(2) : "–"}</td><td>${p.yellow_cards}</td><td>${p.red_cards}</td></tr>`).join("")}</tbody>
       </table></div><p class="small muted" style="margin:10px 0 0">Click a column header to sort. xG = expected goals, xA = expected assists (FPL figures).</p></div>
       ${gone.length ? `<div class="card" style="margin-top:16px"><h2>임대 · 이적으로 이탈 <small>${gone.length}명</small></h2><ul class="match-list">
@@ -439,10 +432,10 @@
         <tbody>${rows.map((r) => `<tr class="${r.is_final ? "" : "mu"}"><td class="l">${esc(r.season)}</td><td class="l small">${esc(DIV_SHORT[r.comp] || r.comp)}</td>
           <td class="l"><span class="pos ${cls(r)}">${r.position ?? "-"}</span>${r.is_final ? "" : ' <span class="small muted">live</span>'}</td>
           <td>${r.played ?? "–"}</td><td>${r.won ?? "–"}</td><td>${r.drawn ?? "–"}</td><td>${r.lost ?? "–"}</td><td>${r.goals_for ?? "–"}</td><td>${r.goals_against ?? "–"}</td><td class="pts">${r.points ?? "–"}</td>
-          <td class="l small">${cupTxt(r.fa_cup)}</td><td class="l small">${cupTxt(r.league_cup)}</td><td class="l small muted">${esc(europe(r)) || "–"}</td>
-          <td class="l small">${r.top_scorer ? `${esc(r.top_scorer)} <span class="muted">(${r.top_scorer_goals ?? "?"})</span>` : "–"}</td></tr>`).join("")}</tbody>
+          <td class="l small">${cupTxt(r.fa_cup)}</td><td class="l small">${cupTxt(r.league_cup)}</td><td class="l small muted wrap">${esc(europe(r)) || "–"}</td>
+          <td class="l small">${r.top_scorer ? `${esc(r.top_scorer)} <span class="muted">(${r.top_scorer_goals ?? "?"}${r.top_scorer_note ? ", " + esc(r.top_scorer_note) : ""})</span>` : "–"}</td></tr>`).join("")}</tbody>
       </table></div>
-      <p class="small muted" style="margin-top:10px">Div 1 = Football League First Division (top flight before 1992-93), Div 2 = Second Division. Top scorer counts goals in all competitions. No league football 1915–19 and 1939–46 (World Wars).${fromWiki ? ' Historical records: <a href="https://en.wikipedia.org/wiki/List_of_Manchester_United_F.C._seasons" target="_blank" rel="noopener">Wikipedia</a> (CC BY-SA 4.0).' : ""}</p></div>`;
+      <p class="small muted" style="margin-top:10px">Div 1 = Football League First Division (top flight before 1992-93), Div 2 = Second Division. Top scorer counts goals in all competitions (current season: Premier League goals only until the season ends). Cup results for the current season are worked out from match results. No league football 1915–19 and 1939–46 (World Wars).${fromWiki ? ' Historical records: <a href="https://en.wikipedia.org/wiki/List_of_Manchester_United_F.C._seasons" target="_blank" rel="noopener">Wikipedia</a> (CC BY-SA 4.0).' : ""}</p></div>`;
   }
 
   // ----- 경기 상세 (#match/<id>) -----
@@ -558,9 +551,6 @@
     if (ts) { transferSeason = ts.dataset.tseason; render(); }
     const era = e.target.closest("[data-era]");
     if (era) { recordsEra = era.dataset.era; render(); }
-    const nf = e.target.closest("[data-news]");
-    if (nf) { newsFilter = nf.dataset.news; newsAll = false; render(); }
-    if (e.target.closest("[data-news-more]")) { newsAll = true; render(); }
     const pos = e.target.closest("[data-pos]");
     if (pos) { playerPos = pos.dataset.pos; render(); }
     const s = e.target.closest("[data-sort]");
