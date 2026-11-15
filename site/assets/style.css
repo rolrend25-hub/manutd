@@ -384,3 +384,5 @@ p.summary { margin: 0; font-size: 16px; line-height: 1.75; }
 .ntag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
 .ntag.official { background: #e7f6ec; border-color: #bfe5cb; color: #17733a; }
 .ntag.rumour { background: #fff3d6; border-color: #f5d68c; color: var(--gold-ink); }
+.live-note { margin: -6px 0 16px; padding: 10px 14px; border-radius: 10px; background: #fdecea; color: var(--red-deep); font-size: 14px; font-weight: 700; }
+.live-note a { color: var(--red); text-decoration: underline; }

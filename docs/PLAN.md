@@ -74,7 +74,7 @@ GitHub 저장소 (private)
 - [x] (2026-11-12) 페이지 `site/index.html` + `site/assets/app.js`: 홈(다음 경기 바·프리뷰·뉴스) / 일정·결과(대회 필터) / 순위(PL·UCL) / 선수(포지션 필터) / 이적(시즌별·Check 열) / 역사(우승·연표·감독) / 시즌 기록(시대 필터) / 경기 상세 `#match/<id>`(득점·카드·출전 선수·템플릿 요약)
 - [x] DB → JSON export `scripts/export_site_data.py` (→ `site/data/data.json`, `data.js`) + GitHub Pages 자동 배포
 - [x] 경기 상세 페이지 `#match/<id>` (2026-11-09): 스코어 클릭 → 득점·도움·카드·최고 활약·경기 요약
-- [x] 공식 엠블럼(football-data 이미지 링크, 저장소 미업로드)·헤드라인 한글/본문 영문 (2026-11-09)
+- [x] 공식 엠블럼(football-data 이미지 링크, 저장소 미업로드)·헤드라인 한글/본문 영문 (2026-11-09) → **2026-11-15 화면 문구 전부 한글로 변경** (팀·선수·매체 이름만 원문)
 - [x] 우측 상단 동기화 시점 배지 (KST, 36시간 넘게 갱신 없으면 노란색 '갱신 지연')
 - [x] (2026-11-12) 메인 화면 개편 (AI 미사용, 사용자 결정): 상단 '다음 경기' 바 + 왼쪽 매치 프리뷰 + 오른쪽 주요 뉴스 카드
   - `etl/build_preview.py` → `match_previews`: 맨유·상대 최근 흐름(규칙 문장), 순위, 핵심 선수, 푸아송 승부 예측, 양 팀 부상(FPL, PL 팀만), 예상 선발(최근 PL 5경기 선발 가중), 맞대결(football-data)
@@ -89,7 +89,7 @@ GitHub 저장소 (private)
 - [x] (2026-11-09) 킥오프 시간 변경·확정·연기 감지: `etl/fetch_fixtures.py` → `notifications`(KICKOFF_CHANGE) 대기열 → 카톡 안내 + 리마인드 재설정. 캘린더는 다음 동기화에서 자동 수정
 
 ### STEP 4. 경기 결과 요약 + 카톡 전송 (무료 템플릿 방식)
-- [x] (2026-11-09 `scripts/summarize_match.py`, 웹은 영문 `analysis_md` + 카톡용 한글 `summary_ko`) 경기 종료 감지 → 상세 데이터 수집 → **규칙 기반 템플릿 요약** 생성 (스코어·득점자/도움·카드·FPL 보너스 상위 선수·순위 변동·다음 경기) → `match_analyses` (`model` 컬럼에 `template-v1` 기록)
+- [x] (2026-11-09 `scripts/summarize_match.py`, 웹은 `analysis_md`(2026-11-15부터 한글, `template-v2`) + 카톡용 한글 `summary_ko`) 경기 종료 감지 → 상세 데이터 수집 → **규칙 기반 템플릿 요약** 생성 (스코어·득점자/도움·카드·FPL 보너스 상위 선수·순위 변동·다음 경기) → `match_analyses` (`model` 컬럼에 `template-v1` 기록)
 - [x] (2026-11-09) 카톡 결과 요약 + 웹 경기 페이지 링크 전송: `notify/send_kakao.py` RESULT — 결과·득점·카드·최고 활약·PL 순위·다음 경기. PL 은 FPL 상세 확정 후(늦으면 킥오프 6시간 뒤), 최근 2일 경기만. 200자 넘으면 카드 목록부터 생략
 - [x] ~~(나중에 선택) Claude API 분석으로 전환~~ → 하지 않음 (2026-11-12 결정: LLM 호출 추가 금지). 요약 생성부는 `scripts/summarize_match.py` 로 분리돼 있음
 

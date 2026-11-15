@@ -52,6 +52,9 @@ MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", 
 def news_ko(news: str, status: str, chance) -> str:
     s = (news or "").strip()
     low = s.lower()
+    j = re.match(r"has joined (.+?) (on loan|permanently)", s, re.I)
+    if j:  # 예: 'Has joined Celta Vigo on loan for the rest of the season'
+        return f"{j.group(1)} {'임대 (시즌 종료까지)' if 'rest of the season' in low else '임대'}"             if j.group(2).lower() == "on loan" else f"{j.group(1)} 완전 이적"
     if status == "s" or "suspend" in low:
         what = "출장 정지"
     elif "illness" in low:
@@ -223,6 +226,19 @@ def predicted_xi(con, season: str) -> dict:
             break
         if pid not in chosen:
             chosen.append(pid)
+    # FPL 은 윙어·세컨드 스트라이커(예: 음뵈모·쿠냐)를 MF 로 분류 → 공격수 0명으로 보이는 문제 보정:
+    # FW 가 2명 미만이고 MF 가 4명 이상이면, 이번 시즌 PL 공격 기록(xG+xA, 없으면 골+도움)이 높은 MF 를 FW 줄로 올림
+    disp = {pid: info[pid]["pos"] for pid in chosen[:11]}
+    n_fw = sum(v == "FW" for v in disp.values())
+    mfs = [pid for pid in chosen[:11] if disp[pid] == "MF"]
+    move = min(3 - n_fw, len(mfs) - 3) if n_fw < 2 and len(mfs) >= 4 else 0
+    if move > 0:
+        att = {r[0]: r[1] or 0 for r in con.execute(
+            "SELECT player_id, COALESCE(xg, 0) + COALESCE(xa, 0) + 0.01 * (goals + assists) FROM player_season_stats "
+            "WHERE season=? AND competition_code='PL'", (season,))}
+        for pid in sorted(mfs, key=lambda p: -att.get(p, 0))[:move]:
+            disp[pid] = "FW"
+            info[pid] = {**info[pid], "pos": "FW"}
     order = {"GK": 0, "DF": 1, "MF": 2, "FW": 3}
     out = []
     for pid in sorted(chosen[:11], key=lambda p: (order.get(info[p]["pos"], 9), -score[p])):
@@ -230,8 +246,9 @@ def predicted_xi(con, season: str) -> dict:
         out.append({"name": info[pid]["name"], "pos": info[pid]["pos"],
                     "conf": "높음" if sc >= 2.2 and pid not in doubt else "보통" if sc >= 1.0 else "낮음",
                     "doubt": pid in doubt})
-    return {"players": out, "basis": len(recent),
-            "shape": " · ".join(f"{p} {shape[p]}" for p in ("GK", "DF", "MF", "FW") if shape.get(p))}
+    cnt = {p: sum(o["pos"] == p for o in out) for p in ("DF", "MF", "FW")}
+    return {"players": out, "basis": len(recent), "adjusted": move > 0,
+            "shape": "-".join(str(cnt[p]) for p in ("DF", "MF", "FW") if cnt[p]) + (" (추정)" if move > 0 else "")}
 
 
 # ---------------------------------------------------------------- 메인

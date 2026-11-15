@@ -24,7 +24,7 @@ import argparse
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -61,7 +61,7 @@ def ensure_schema(con) -> None:
 # ---------------------------------------------------------------- 감독
 def parse_wiki_date(text: str) -> str | None:
     t = wiki.clean(text)
-    if not t or t.lower().startswith("present"):
+    if not t or re.match(r"(present|current|incumbent)", t, re.I):
         return None
     for fmt, out in (("%d %B %Y", "%Y-%m-%d"), ("%B %Y", "%Y-%m"), ("%Y", "%Y")):
         m = re.search({"%d %B %Y": r"\d{1,2} [A-Z][a-z]+ \d{4}", "%B %Y": r"[A-Z][a-z]+ \d{4}", "%Y": r"\d{4}"}[fmt], t)
@@ -95,7 +95,7 @@ def wiki_managers() -> tuple[list[dict], int]:
                 "nationality": get("Nationality") or None,
                 "start_date": parse_wiki_date(get("From")),
                 "end_date": parse_wiki_date(to_txt),
-                "current": to_txt.lower().startswith("present"),
+                "current": bool(re.match(r"(present|current|incumbent)", to_txt, re.I)),
                 "matches": wiki.to_int(get("M")), "wins": wiki.to_int(get("W")),
                 "draws": wiki.to_int(get("D")), "losses": wiki.to_int(get("L")),
                 "honours": ", ".join(x.strip() for x in get("Honours").splitlines() if x.strip()) or None,
@@ -128,8 +128,16 @@ def sync_managers(con, coach: dict | None, dry: bool) -> None:
         alert("football-data 에 감독 정보가 없음 → 위키 현직 감독을 공식 확인 못 함, 기존 데이터 유지")
         return
     if not names_match(cur[0]["name"], official):
-        alert(f"감독 정보 불일치: 위키백과 현직 '{cur[0]['name']}' ≠ 공식 '{official}' → 기존 데이터 유지, 확인 필요")
-        return
+        # 새 감독 선임 직후: 위키는 새 감독(부임 예정 포함), 공식 데이터는 아직 전임 감독인 경우가 며칠 있음.
+        # 새 감독 부임일이 최근 21일 이내·미래이고 공식 감독이 바로 앞 감독이면 정상으로 보고 위키 기준 반영
+        prev_row = sorted(rows, key=lambda r: r["start_date"] or "")[-2] if len(rows) > 1 else None
+        fresh = (cur[0]["start_date"] or "") >= (datetime.now(timezone.utc) - timedelta(days=21)).strftime("%Y-%m-%d")
+        if fresh and prev_row and names_match(prev_row["name"], official):
+            print(f"  새 감독 {cur[0]['name']} ({cur[0]['start_date']} 부임) — 공식 데이터는 아직 전임 {official}, 갱신 대기 (정상)")
+            official = f"{official} (갱신 대기)"
+        else:
+            alert(f"감독 정보 불일치: 위키백과 현직 '{cur[0]['name']}' ≠ 공식 '{official}' → 기존 데이터 유지, 확인 필요")
+            return
 
     # 기존 행의 한글 이름·비고 이어받기 (이름 + 부임 연도가 같은 행 우선)
     prev = [dict(r) for r in con.execute("SELECT name, name_ko, start_date, note, note_en FROM managers")]
@@ -144,7 +152,7 @@ def sync_managers(con, coach: dict | None, dry: bool) -> None:
         return pick["name_ko"], note, pick["note_en"] or w["honours"]
 
     if old_cur and not names_match(old_cur, cur[0]["name"]):
-        alert(f"감독 변경 반영: {old_cur} → {cur[0]['name']} ({cur[0]['start_date']} 부임, 공식 확인)")
+        alert(f"감독 변경 반영: {old_cur} → {cur[0]['name']} ({cur[0]['start_date']} 부임, 공식 데이터: {official})")
     if dry:
         for w in rows[-5:]:
             print("  ", w["name"], w["start_date"], "~", w["end_date"] or "현직", carry(w))

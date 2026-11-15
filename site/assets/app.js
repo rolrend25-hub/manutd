@@ -1,41 +1,43 @@
 /* Red Devils Matchday — 정적 페이지. 데이터는 data/data.js (scripts/export_site_data.py 로 생성)
-   표기 규칙: 헤드라인(h1·h2·h3·메뉴)은 한글, 본문은 영문. */
+   표기 규칙 (2026-11-15 변경): 화면 문구는 모두 한글. 팀·선수·매체 이름은 원문(영문) 그대로. */
 (() => {
   const D = window.MUFC_DATA;
   const app = document.getElementById("app");
   if (!D) {
-    app.innerHTML = `<div class="card empty"><b>No data file</b>Run python scripts/export_site_data.py first.</div>`;
+    app.innerHTML = `<div class="card empty"><b>데이터 파일 없음</b>먼저 python scripts/export_site_data.py 를 실행하세요.</div>`;
     return;
   }
 
   // ---------- helpers ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  // 헤드라인용(한글) / 본문용(영문) 대회명
+  // 대회명 (한글)
   const COMP_KO = { PL: "프리미어리그", UCL: "챔피언스리그", UEL: "유로파리그", UECL: "컨퍼런스리그", FAC: "FA컵", ELC: "EFL컵", CS: "커뮤니티실드" };
-  const COMP_EN = { PL: "Premier League", UCL: "Champions League", UEL: "Europa League", UECL: "Conference League", FAC: "FA Cup", ELC: "EFL Cup", CS: "Community Shield" };
   const compKo = (c) => COMP_KO[c] || c;
-  const compEn = (c) => COMP_EN[c] || c;
   const fmt = (tz, opts, loc = "en-GB") => new Intl.DateTimeFormat(loc, { timeZone: tz, ...opts });
   const KST = "Asia/Seoul", UK = "Europe/London";
-  const dateTime = (iso, tz) => fmt(tz, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
-  const shortDate = (iso, tz) => fmt(tz, { weekday: "short", day: "numeric", month: "short" }).format(new Date(iso));
+  // 한국식 날짜: "11/23 (월)" · "11/23 (월) 01:30"
+  const parts = (iso, tz) => Object.fromEntries(fmt(tz, { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }, "ko-KR")
+    .formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  const shortDate = (iso, tz) => { const p = parts(iso, tz); return `${p.month}/${p.day} (${p.weekday})`; };
+  const dateTime = (iso, tz) => { const p = parts(iso, tz); return `${p.month}/${p.day} (${p.weekday}) ${p.hour}:${p.minute}`; };
   const hm = (iso, tz) => fmt(tz, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
   const monthKey = (iso) => fmt(KST, { year: "numeric", month: "long" }, "ko-KR").format(new Date(iso)); // 월 헤드라인(한글)
   const ukZone = (iso) => (fmt(UK, { timeZoneName: "short" }).format(new Date(iso)).includes("BST") ? "BST" : "GMT");
-  const ord = (n) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  const ord = (n) => `${n}위`;
   const crestImg = (url, alt) => (url ? `<img src="${esc(url)}" alt="${esc(alt)}" loading="lazy">` : "");
-  const chip = (r) => `<span class="chip ${r || "pending"}">${r || "-"}</span>`;
-  const ha = (m) => (m.home_away === "H" ? "Home" : m.home_away === "A" ? "Away" : "Neutral");
+  const RES_KO = { W: "승", D: "무", L: "패" };
+  const chip = (r) => `<span class="chip ${r || "pending"}">${RES_KO[r] || "-"}</span>`;
+  const ha = (m) => (m.home_away === "H" ? "홈" : m.home_away === "A" ? "원정" : "중립");
 
   // 맨유 공식 엠블럼 (football-data 서버 이미지 링크, 불러오기 실패 시 'MU' 마크로 대체)
   const MU_CREST = D.mu_crest;
   const muCrest = (cls) => MU_CREST
-    ? `<img class="${cls}" src="${esc(MU_CREST)}" alt="Manchester United crest" onerror="this.outerHTML='<span class=&quot;${cls} crest-fallback&quot;>MU</span>'">`
+    ? `<img class="${cls}" src="${esc(MU_CREST)}" alt="맨유 엠블럼" onerror="this.outerHTML='<span class=&quot;${cls} crest-fallback&quot;>MU</span>'">`
     : `<span class="${cls} crest-fallback">MU</span>`;
   const title = (t) => `<h1 class="page-title with-crest">${muCrest("title-crest")}<span>${t}</span></h1>`;
 
   // 킥오프 시각 미정(위키백과 컵 경기 등)이면 날짜만
-  const koTime = (m, tz) => (m.kickoff_confirmed ? dateTime(m.kickoff_utc, tz) : `${shortDate(m.kickoff_utc, tz)} · TBC`);
+  const koTime = (m, tz) => (m.kickoff_confirmed ? dateTime(m.kickoff_utc, tz) : `${shortDate(m.kickoff_utc, tz)} · 시간 미정`);
   const matches = D.matches.slice().sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
   const finished = matches.filter((m) => m.status === "FINISHED");
   // 지난 시즌 (data/archive.js — 일정·결과에서 지난 시즌을 고를 때만 불러옴)
@@ -65,7 +67,7 @@
     let s = `${h} - ${a}`;
     if (m.mu_pens != null) {
       const [hp, ap] = flip ? [m.opp_pens, m.mu_pens] : [m.mu_pens, m.opp_pens];
-      s += ` <small class="small">(pens ${hp}-${ap})</small>`;
+      s += ` <small class="small">(승부차기 ${hp}-${ap})</small>`;
     }
     return s;
   }
@@ -74,13 +76,13 @@
     const done = m.status === "FINISHED";
     const live = m.status === "IN_PLAY" || m.status === "PAUSED";
     const right = done
-      ? `<a class="score score-link" href="#match/${m.id}" title="United score first · match details">${scoreText(m, true)} ${chip(m.result)}<span class="more">Details ›</span></a>`
-      : `<div class="score"><div class="tbd">${m.status === "POSTPONED" ? "Postponed" : m.kickoff_confirmed ? `UK ${hm(m.kickoff_utc, UK)}` : "TBC"}<br>${live ? "<b style='color:var(--red)'>LIVE</b>" : ""}</div></div>`;
+      ? `<a class="score score-link" href="#match/${m.id}" title="맨유 점수 먼저 · 경기 상세">${scoreText(m, true)} ${chip(m.result)}<span class="more">상세 ›</span></a>`
+      : `<div class="score"><div class="tbd">${m.status === "POSTPONED" ? "연기" : m.kickoff_confirmed ? `영국 ${hm(m.kickoff_utc, UK)}` : "미정"}<br>${live ? "<b style='color:var(--red)'>진행 중</b>" : ""}</div></div>`;
     return `<li class="match">
-      <div class="when"><b>${shortDate(m.kickoff_utc, KST)}</b><span>${m.kickoff_confirmed ? `KST ${hm(m.kickoff_utc, KST)}` : "Time TBC"}</span></div>
+      <div class="when"><b>${shortDate(m.kickoff_utc, KST)}</b><span>${m.kickoff_confirmed ? `${hm(m.kickoff_utc, KST)}` : "시간 미정"}</span></div>
       <div class="who">${crestImg(m.opponent_crest, m.opponent)}
         <div style="min-width:0"><div class="opp">vs ${esc(m.opponent)}</div>
-        <div class="sub"><span class="badge ${esc(m.comp)}">${esc(compEn(m.comp))}</span><span class="badge ha">${ha(m)}</span>${m.matchday ? `<span class="small muted">${m.comp === "PL" ? "MW" + m.matchday : "MD" + m.matchday}</span>` : ""}</div></div>
+        <div class="sub"><span class="badge ${esc(m.comp)}">${esc(compKo(m.comp))}</span><span class="badge ha">${ha(m)}</span>${m.matchday ? `<span class="small muted">${m.comp === "PL" ? m.matchday + "R" : m.matchday + "차전"}</span>` : ""}</div></div>
       </div>
       ${right}
     </li>`;
@@ -91,11 +93,11 @@
     const el = document.getElementById("countdown");
     if (!el) return;
     const diff = new Date(el.dataset.kickoff).getTime() - Date.now();
-    if (diff <= 0) { el.innerHTML = `<div style="min-width:auto;padding:8px 16px"><b style="font-size:22px">KICK OFF</b><span>In play or awaiting result</span></div>`; return; }
+    if (diff <= 0) { el.innerHTML = `<div style="min-width:auto;padding:8px 16px"><b style="font-size:22px">킥오프</b><span>경기 중 또는 결과 대기</span></div>`; return; }
     const d = Math.floor(diff / 864e5), h = Math.floor(diff / 36e5) % 24, mi = Math.floor(diff / 6e4) % 60, s = Math.floor(diff / 1e3) % 60;
     const p = (n) => String(n).padStart(2, "0");
     if (el.classList.contains("compact")) { el.innerHTML = `<b>D-${d}</b> ${p(h)}:${p(mi)}:${p(s)}`; return; }
-    el.innerHTML = [[d, "Days"], [p(h), "Hours"], [p(mi), "Mins"], [p(s), "Secs"]].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join("");
+    el.innerHTML = [[d, "일"], [p(h), "시간"], [p(mi), "분"], [p(s), "초"]].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join("");
   }
 
   // ----- 메인: 상단 다음 경기 바 + 매치 프리뷰(왼쪽) + 주요 뉴스(오른쪽) -----
@@ -106,6 +108,14 @@
     return m < 60 ? `${m}분 전` : m < 1440 ? `${Math.floor(m / 60)}시간 전` : `${Math.floor(m / 1440)}일 전`;
   };
   const COMP_SHORT = { PL: "PL", UCL: "UCL", UEL: "UEL", FAC: "FA컵", ELC: "EFL컵", CS: "실드", CHAMP: "챔피언십", PPL: "포르투갈", PD: "라리가", SA: "세리에A", BL1: "분데스", FL1: "리그1", DED: "네덜란드" };
+
+  // 이 사이트는 하루 몇 번만 갱신 → 경기 중에는 실시간 스코어를 바깥 링크로 안내
+  const BBC_LIVE = "https://www.bbc.com/sport/football/teams/manchester-united/scores-fixtures";
+  function liveNote(m) {
+    const k = new Date(m.kickoff_utc).getTime(), t = Date.now();
+    if (!m.kickoff_confirmed || t < k - 15 * 6e4 || t > k + 150 * 6e4) return "";
+    return `<p class="live-note">⚽ 지금 경기 중이에요. 이 사이트는 경기 후 30분~1시간 뒤에 결과가 반영됩니다. 실시간 스코어: <a href="${BBC_LIVE}" target="_blank" rel="noopener">BBC Sport</a></p>`;
+  }
 
   function nextBar() {
     const m = upcoming[0];
@@ -120,7 +130,7 @@
       <span class="nb-teams">${home ? mu : op}<span class="nb-vs">vs</span>${home ? op : mu}</span>
       <span class="nb-time">${m.kickoff_confirmed ? `${koDT(m.kickoff_utc)} KST` : `${koD(m.kickoff_utc)} · 시간 미정`}<small>${m.kickoff_confirmed ? ` · UK ${hm(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}` : ""}${m.venue ? " · " + esc(m.venue) : ""} · ${home ? "홈" : "원정"}</small></span>
       <span class="nb-cd compact" id="countdown" data-kickoff="${esc(m.kickoff_utc)}"></span>
-    </a>`;
+    </a>${liveNote(m)}`;
   }
 
   const formChips = (ms) => `<div class="form">${(ms || []).slice().reverse().map((x) => `<span class="chip ${x.r}" title="${esc(`${x.date} ${COMP_SHORT[x.comp] || x.comp} ${x.ha === "H" ? "홈" : "원정"} vs ${x.opp}  ${x.gf}-${x.ga}`)}">${{ W: "승", D: "무", L: "패" }[x.r]}</span>`).join("")}</div>`;
@@ -135,6 +145,7 @@
     if (!list.length) return '<p class="muted small">결장 예상 선수 없음</p>';
     return `<ul class="pv-out">${list.map((p) => `<li><span class="pos">${esc(p.pos)}</span><b>${esc(p.name)}</b><span class="badge ${p.status === "s" ? "st-sus" : p.status === "d" ? "st-doubt" : "st-inj"}" title="${esc(p.news)}">${esc(p.ko)}</span></li>`).join("")}</ul>`;
   }
+  const XI_POS = { GK: "GK", DF: "수비", MF: "중원", FW: "공격" };
   function previewPanel() {
     const m = upcoming[0], P = D.preview;
     if (!m) return `<div class="card"><h2>매치 프리뷰</h2><p class="muted">다가오는 경기가 없습니다.</p></div>`;
@@ -167,8 +178,8 @@
       <div class="card pv">
         <h2>예상 선발 <small>${esc(xi.shape || "")}</small></h2>
         ${xi.caveat ? `<p class="pv-note">${esc(xi.caveat)}</p>` : ""}
-        ${byPos.length ? `<div class="pv-xi">${byPos.map(([pos, l]) => `<div class="xi-row"><span class="pos">${pos}</span>${l.map((p) => `<span class="xi-p conf-${p.conf === "높음" ? "hi" : p.conf === "보통" ? "mid" : "lo"}" title="선발 가능성 ${p.conf}${p.doubt ? " · 출전 불투명" : ""}">${esc(p.name)}${p.doubt ? " ?" : ""}</span>`).join("")}</div>`).join("")}</div>
-          <p class="small muted" style="margin:8px 0 0">최근 PL ${xi.basis}경기 선발 기록(최근 경기일수록 가중)에서 부상·징계 선수를 빼고, 직전 경기 포지션 구성을 유지해 고른 명단입니다. 진한 색일수록 선발 가능성이 높습니다. 포지션은 FPL 분류라 실제 포메이션과 다를 수 있습니다.</p>`
+        ${byPos.length ? `<div class="pv-xi">${byPos.map(([pos, l]) => `<div class="xi-row"><span class="pos">${XI_POS[pos]}</span>${l.map((p) => `<span class="xi-p conf-${p.conf === "높음" ? "hi" : p.conf === "보통" ? "mid" : "lo"}" title="선발 가능성 ${p.conf}${p.doubt ? " · 출전 불투명" : ""}">${esc(p.name)}${p.doubt ? " ?" : ""}</span>`).join("")}</div>`).join("")}</div>
+          <p class="small muted" style="margin:8px 0 0">최근 PL ${xi.basis}경기 선발 기록(최근 경기일수록 가중)에서 부상·징계 선수를 빼고, 직전 경기 포지션 구성을 유지해 고른 명단입니다. 진한 색일수록 선발 가능성이 높습니다. 포지션은 FPL 분류 기준이며${xi.adjusted ? ", FPL이 미드필더로 분류한 선수 중 공격 기록(xG+xA)이 높은 선수를 공격 줄로 올려 포메이션을 추정했습니다" : ""}. 실제 포메이션과 다를 수 있습니다.</p>`
           : '<p class="muted">선발 기록이 아직 없습니다.</p>'}
       </div>`;
   }
@@ -205,31 +216,31 @@
       <div class="card span-4">
         <h2>프리미어리그 <small>${esc(D.season)}</small></h2>
         ${plRow ? `<div class="stat-row">
-          <div class="stat hl"><b>${ord(plRow.position)}</b><span>Position</span></div>
-          <div class="stat"><b>${plRow.points}</b><span>Points</span></div>
-          <div class="stat"><b>${plRow.goal_diff > 0 ? "+" : ""}${plRow.goal_diff}</b><span>Goal diff</span></div></div>
-          <p class="small muted" style="margin:10px 0 6px">P${plRow.played} · W${plRow.won} D${plRow.drawn} L${plRow.lost} · Last 5</p>
-          <div class="form">${plForm.map((m) => chip(m.result)).join("")}</div>` : `<p class="muted">No standings data</p>`}
-        <p style="margin:12px 0 0"><a href="#table" class="small" style="color:var(--red);font-weight:700">Full table →</a></p>
+          <div class="stat hl"><b>${ord(plRow.position)}</b><span>순위</span></div>
+          <div class="stat"><b>${plRow.points}</b><span>승점</span></div>
+          <div class="stat"><b>${plRow.goal_diff > 0 ? "+" : ""}${plRow.goal_diff}</b><span>득실차</span></div></div>
+          <p class="small muted" style="margin:10px 0 6px">${plRow.played}경기 ${plRow.won}승 ${plRow.drawn}무 ${plRow.lost}패 · 최근 5경기</p>
+          <div class="form">${plForm.map((m) => chip(m.result)).join("")}</div>` : `<p class="muted">순위 정보 없음</p>`}
+        <p style="margin:12px 0 0"><a href="#table" class="small" style="color:var(--red);font-weight:700">전체 순위 →</a></p>
       </div>
       <div class="card span-4">
         <h2>챔피언스리그 <small>리그 페이즈</small></h2>
         ${uclRow ? `<div class="stat-row">
-          <div class="stat hl"><b>${ord(uclRow.position)}</b><span>of 36</span></div>
-          <div class="stat"><b>${uclRow.points}</b><span>Points</span></div>
-          <div class="stat"><b>${uclRow.played}</b><span>Played</span></div></div>
-          <p class="small muted" style="margin:10px 0 0">${uclRow.position <= 8 ? "Direct to round of 16" : uclRow.position <= 24 ? "Knockout play-off zone (9th–24th)" : "Elimination zone (25th+)"} · W${uclRow.won} D${uclRow.drawn} L${uclRow.lost}</p>` : `<p class="muted">No standings data</p>`}
+          <div class="stat hl"><b>${ord(uclRow.position)}</b><span>36팀 중</span></div>
+          <div class="stat"><b>${uclRow.points}</b><span>승점</span></div>
+          <div class="stat"><b>${uclRow.played}</b><span>경기</span></div></div>
+          <p class="small muted" style="margin:10px 0 0">${uclRow.position <= 8 ? "16강 직행권 (1~8위)" : uclRow.position <= 24 ? "플레이오프권 (9~24위)" : "탈락권 (25위 이하)"} · ${uclRow.won}승 ${uclRow.drawn}무 ${uclRow.lost}패</p>` : `<p class="muted">순위 정보 없음</p>`}
       </div>
       <div class="card span-4">
         <h2>시즌 전체 <small>PL + UCL</small></h2>
         <div class="stat-row">
-          <div class="stat"><b>${w}</b><span>Won</span></div><div class="stat"><b>${d}</b><span>Drawn</span></div><div class="stat"><b>${l}</b><span>Lost</span></div></div>
-        <p class="small muted" style="margin:10px 0 0">${finished.length} matches · ${gf} scored, ${ga} conceded</p>
+          <div class="stat"><b>${w}</b><span>승</span></div><div class="stat"><b>${d}</b><span>무</span></div><div class="stat"><b>${l}</b><span>패</span></div></div>
+        <p class="small muted" style="margin:10px 0 0">${finished.length}경기 · ${gf}득점 ${ga}실점</p>
       </div>
-      <div class="card span-6"><div class="section-head"><h2>최근 결과</h2><a href="#fixtures">View all →</a></div>
+      <div class="card span-6"><div class="section-head"><h2>최근 결과</h2><a href="#fixtures">전체 보기 →</a></div>
         <ul class="match-list">${recent.map(matchRow).join("")}</ul></div>
-      <div class="card span-6"><div class="section-head"><h2>다가오는 경기</h2><a href="#fixtures">Full schedule →</a></div>
-        <ul class="match-list">${next.map(matchRow).join("") || `<li class="empty">No upcoming fixtures</li>`}</ul></div>
+      <div class="card span-6"><div class="section-head"><h2>다가오는 경기</h2><a href="#fixtures">전체 일정 →</a></div>
+        <ul class="match-list">${next.map(matchRow).join("") || `<li class="empty">예정된 경기가 없습니다</li>`}</ul></div>
     </div>`;
   }
 
@@ -244,8 +255,8 @@
     const seasonBar = ARCH_SEASONS.length
       ? `<div class="filters season-filters">${[D.season, ...ARCH_SEASONS].map((s) => `<button data-fseason="${s}" class="${s === fixtureSeason ? "on" : ""}">${s}</button>`).join("")}</div>` : "";
     if (past && archiveState !== "ready") {
-      return `${title("일정 · 결과")}<p class="page-sub">${esc(fixtureSeason)} season</p>${seasonBar}
-        <div class="card empty">${archiveState === "error" ? "<b>Could not load past seasons</b>Please refresh the page." : "<b>Loading…</b>"}</div>`;
+      return `${title("일정 · 결과")}<p class="page-sub">${esc(fixtureSeason)} 시즌</p>${seasonBar}
+        <div class="card empty">${archiveState === "error" ? "<b>지난 시즌을 불러오지 못했습니다</b>페이지를 새로고침해 주세요." : "<b>불러오는 중…</b>"}</div>`;
     }
     let html = "", cur = "";
     for (const m of list) {
@@ -255,13 +266,13 @@
     }
     if (cur) html += "</ul>";
     return `${title("일정 · 결과")}
-      <p class="page-sub">${esc(fixtureSeason)} season · Dates in Korea time (KST) with UK time alongside (daylight saving applied automatically) · Scores show United first</p>
+      <p class="page-sub">${esc(fixtureSeason)} 시즌 · 날짜·시각은 한국 시간, 오른쪽은 영국 시간 (서머타임 자동 반영) · 점수는 맨유 점수가 앞</p>
       ${seasonBar}
-      <div class="filters">${comps.map((c) => `<button data-filter="${c}" class="${c === fixtureFilter ? "on" : ""}">${c === "ALL" ? "All" : compEn(c)}</button>`).join("")}</div>
-      ${html || '<p class="muted">No matches recorded for this season yet.</p>'}
+      <div class="filters">${comps.map((c) => `<button data-filter="${c}" class="${c === fixtureFilter ? "on" : ""}">${c === "ALL" ? "전체" : compKo(c)}</button>`).join("")}</div>
+      ${html || '<p class="muted">이 시즌에 기록된 경기가 아직 없습니다.</p>'}
       <p class="small muted">${past
-        ? `* Competitive matches only (friendlies excluded). ${fixtureSeason >= "2025" ? "Sources: football-data.org (Premier League) and Wikipedia (cups)." : "Source: API-Football — scores, goal times, cards, line-ups and team stats."}`
-        : "* Premier League and Champions League from football-data.org; FA Cup and EFL Cup from Wikipedia."}</p>`;
+        ? `* 공식 경기만 (친선경기 제외). ${fixtureSeason >= "2025" ? "출처: football-data.org (프리미어리그), 위키백과 (컵 대회)." : "출처: API-Football — 점수·득점 시간·카드·출전 선수·팀 기록."}`
+        : "* 프리미어리그·챔피언스리그는 football-data.org, FA컵·EFL컵은 위키백과 기준."}</p>`;
   }
 
   let tableComp = "PL";
@@ -271,12 +282,12 @@
       ? (p <= 4 ? "ucl" : p === 5 ? "uel" : p >= 18 ? "rel" : "")
       : (p <= 8 ? "ucl" : p <= 24 ? "po" : "");
     const legend = tableComp === "PL"
-      ? `<span><i class="zone ucl"></i>Champions League</span><span><i class="zone uel"></i>Europa League</span><span><i class="zone rel"></i>Relegation</span>`
-      : `<span><i class="zone ucl"></i>Round of 16</span><span><i class="zone po"></i>Knockout play-off</span>`;
-    return `${title("순위")}<p class="page-sub">${esc(D.season)} season · Updated automatically every day</p>
-      <div class="filters">${["PL", "UCL"].map((c) => `<button data-table="${c}" class="${c === tableComp ? "on" : ""}">${compEn(c)}</button>`).join("")}</div>
+      ? `<span><i class="zone ucl"></i>챔피언스리그</span><span><i class="zone uel"></i>유로파리그</span><span><i class="zone rel"></i>강등</span>`
+      : `<span><i class="zone ucl"></i>16강 직행</span><span><i class="zone po"></i>플레이오프</span>`;
+    return `${title("순위")}<p class="page-sub">${esc(D.season)} 시즌 · 매일 자동 갱신</p>
+      <div class="filters">${["PL", "UCL"].map((c) => `<button data-table="${c}" class="${c === tableComp ? "on" : ""}">${compKo(c)}</button>`).join("")}</div>
       <div class="card"><div class="table-wrap"><table class="data">
-        <thead><tr><th class="l">#</th><th class="l">Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead>
+        <thead><tr><th class="l">#</th><th class="l">팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득점</th><th>실점</th><th>득실</th><th>승점</th></tr></thead>
         <tbody>${rows.map((r) => `<tr class="${r.is_mu ? "mu" : ""}">
           <td class="l"><i class="zone ${zone(r.position)}"></i>${r.position}</td>
           <td class="team">${crestImg(r.crest, r.team)}${esc(r.team)}</td>
@@ -286,37 +297,40 @@
   }
 
   function pageEmpty(t, sub, msg) {
-    return `${title(t)}<p class="page-sub">${sub}</p><div class="card empty"><b>Coming soon</b>${msg}</div>`;
+    return `${title(t)}<p class="page-sub">${sub}</p><div class="card empty"><b>준비 중</b>${msg}</div>`;
   }
 
   // ----- 선수 -----
-  const POS_EN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
-  const POS_PL = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
-  const AVAIL = { i: ["Injured", "st-inj"], s: ["Suspended", "st-sus"], d: ["Doubtful", "st-doubt"], n: ["Unavailable", "st-sus"], u: ["Left", "st-doubt"] };
+  const POS_EN = { GK: "골키퍼", DF: "수비수", MF: "미드필더", FW: "공격수" };
+  const POS_PL = POS_EN;
+  const AVAIL = { i: ["부상", "st-inj"], s: ["출장 정지", "st-sus"], d: ["출전 불투명", "st-doubt"], n: ["출전 불가", "st-sus"], u: ["이탈", "st-doubt"] };
   const age = (dob) => {
     if (!dob) return "";
     const b = new Date(dob), n = new Date();
     return n.getFullYear() - b.getFullYear() - (n < new Date(n.getFullYear(), b.getMonth(), b.getDate()) ? 1 : 0);
   };
   const pName = (p) => p.known_as || p.full_name;
-  const photo = (p, cls = "pthumb") => `<img class="${cls}" src="${esc(p.photo_url)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`;
+  // 사진이 없거나 못 불러오면 기본 실루엣 (#6)
+  const SIL = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 50"><rect width="40" height="50" fill="#ece7e1"/><circle cx="20" cy="18" r="8" fill="#c9c1b8"/><path d="M5 50c0-10 7-17 15-17s15 7 15 17z" fill="#c9c1b8"/></svg>');
+  const photo = (p, cls = "pthumb") => `<img class="${cls}" src="${esc(p.photo_url || SIL)}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${SIL}'">`;
+  const pNews = (p) => p.news_ko || p.news || "";
 
   let playerPos = "ALL", playerSort = { key: "goals", dir: -1 };
   const COLS = [
     // 골·도움을 선수 이름 바로 옆에 → 모바일에서 옆으로 밀지 않아도 보임
-    ["shirt_number", "#", 1], ["goals", "Goals"], ["assists", "Assists"], ["appearances", "Apps"], ["starts", "Starts"], ["minutes", "Mins"],
-    ["xg", "xG"], ["xa", "xA"], ["yellow_cards", "YC"], ["red_cards", "RC"],
+    ["shirt_number", "#", 1], ["goals", "골"], ["assists", "도움"], ["appearances", "출전"], ["starts", "선발"], ["minutes", "출전 시간"],
+    ["xg", "xG"], ["xa", "xA"], ["yellow_cards", "경고"], ["red_cards", "퇴장"],
   ];
 
   function pagePlayers() {
-    if (!D.players.length) return pageEmpty("선수 통계", `${esc(D.season)} season`, "Shown after running python etl/fetch_players.py.");
+    if (!D.players.length) return pageEmpty("선수 통계", `${esc(D.season)} 시즌`, "python etl/fetch_players.py 실행 후 표시됩니다.");
     const active = D.players.filter((p) => p.squad_status === "active");
     const gone = D.players.filter((p) => p.squad_status !== "active");
     const leader = (key, label, unit) => {
       const p = active.slice().sort((a, b) => (b[key] || 0) - (a[key] || 0) || b.minutes - a.minutes)[0];
       return `<div class="card span-4 leader">${photo(p, "lphoto")}<div><div class="small muted">${label}</div>
         <div class="lval">${p[key]}<small>${unit}</small></div><div class="lname">${esc(pName(p))}</div>
-        <div class="small muted">${POS_EN[p.position] || ""}${p.shirt_number ? " · No. " + p.shirt_number : ""}</div></div></div>`;
+        <div class="small muted">${POS_EN[p.position] || ""}${p.shirt_number ? " · 등번호 " + p.shirt_number : ""}</div></div></div>`;
     };
     const out = active.filter((p) => ["i", "s", "d", "n"].includes(p.avail));
 
@@ -328,57 +342,71 @@
     const th = ([k, l]) => `<th data-sort="${k}" class="sortable${playerSort.key === k ? " on" : ""}">${l}${playerSort.key === k ? (playerSort.dir < 0 ? " ▾" : " ▴") : ""}</th>`;
 
     return `${title("선수 통계")}
-      <p class="page-sub">${esc(D.season)} Premier League · Manchester United matches only (other competitions excluded)</p>
-      <div class="grid">${leader("goals", "Top scorer", " goals")}${leader("assists", "Most assists", " assists")}${leader("minutes", "Most minutes", " mins")}</div>
+      <p class="page-sub">${esc(D.season)} 프리미어리그 기록만 (컵 대회·챔피언스리그 제외)</p>
+      <div class="grid">${leader("goals", "최다 득점", "골")}${leader("assists", "최다 도움", "도움")}${leader("minutes", "최다 출전 시간", "분")}</div>
       ${out.length ? `<div class="card" style="margin-bottom:16px"><h2>부상 · 징계 <small>${out.length}명</small></h2><div class="injuries">
         ${out.map((p) => `<div class="inj-card">${photo(p)}<div style="min-width:0"><b>${esc(pName(p))}</b> <span class="badge ${AVAIL[p.avail][1]}">${AVAIL[p.avail][0]}</span>
-          <div class="small muted">${esc(p.news)}</div></div></div>`).join("")}</div></div>` : ""}
-      <div class="filters">${["ALL", "GK", "DF", "MF", "FW"].map((c) => `<button data-pos="${c}" class="${c === playerPos ? "on" : ""}">${c === "ALL" ? "All" : POS_PL[c]}</button>`).join("")}</div>
+          <div class="small muted" title="${esc(p.news)}">${esc(pNews(p))}</div></div></div>`).join("")}</div></div>` : ""}
+      <div class="filters">${["ALL", "GK", "DF", "MF", "FW"].map((c) => `<button data-pos="${c}" class="${c === playerPos ? "on" : ""}">${c === "ALL" ? "전체" : POS_PL[c]}</button>`).join("")}</div>
       <div class="card"><div class="table-wrap"><table class="data players">
-        <thead><tr>${th(COLS[0])}<th class="l">Player</th>${COLS.slice(1).map(th).join("")}</tr></thead>
+        <thead><tr>${th(COLS[0])}<th class="l">선수</th>${COLS.slice(1).map(th).join("")}</tr></thead>
         <tbody>${list.map((p) => `<tr class="${p.minutes ? "" : "dim"}">
           <td class="num">${p.shirt_number ?? ""}</td>
-          <td class="team">${photo(p)}<div><b>${esc(pName(p))}</b>${p.avail && AVAIL[p.avail] && p.avail !== "u" ? ` <span class="dot ${AVAIL[p.avail][1]}" title="${esc(p.news)}"></span>` : ""}
-            <div class="small muted">${p.position}${age(p.date_of_birth) !== "" ? " · Age " + age(p.date_of_birth) : ""}</div></div></td>
+          <td class="team">${photo(p)}<div><b>${esc(pName(p))}</b>${p.avail && AVAIL[p.avail] && p.avail !== "u" ? ` <span class="dot ${AVAIL[p.avail][1]}" title="${esc(pNews(p))}"></span>` : ""}
+            <div class="small muted">${p.position}${age(p.date_of_birth) !== "" ? " · 만 " + age(p.date_of_birth) + "세" : ""}</div></div></td>
           <td class="pts">${p.goals}</td><td class="pts">${p.assists}</td><td>${p.appearances}</td><td>${p.starts}</td><td>${p.minutes}</td>
           <td>${p.xg != null ? p.xg.toFixed(2) : "–"}</td><td>${p.xa != null ? p.xa.toFixed(2) : "–"}</td><td>${p.yellow_cards}</td><td>${p.red_cards}</td></tr>`).join("")}</tbody>
-      </table></div><p class="small muted" style="margin:10px 0 0">Click a column header to sort. xG = expected goals, xA = expected assists (FPL figures).</p></div>
+      </table></div><p class="small muted" style="margin:10px 0 0">열 제목을 누르면 정렬됩니다. xG = 기대 득점, xA = 기대 도움 (FPL 수치). 출전 시간은 분 단위입니다.</p></div>
       ${gone.length ? `<div class="card" style="margin-top:16px"><h2>임대 · 이적으로 이탈 <small>${gone.length}명</small></h2><ul class="match-list">
-        ${gone.map((p) => `<li class="match" style="grid-template-columns:1fr"><div><b>${esc(pName(p))}</b> <span class="small muted">${p.position}</span><div class="small muted">${esc(p.news)}</div></div></li>`).join("")}</ul></div>` : ""}`;
+        ${gone.map((p) => `<li class="match" style="grid-template-columns:1fr"><div><b>${esc(pName(p))}</b> <span class="small muted">${p.position}</span><div class="small muted" title="${esc(p.news)}">${esc(pNews(p))}</div></div></li>`).join("")}</ul></div>` : ""}`;
   }
 
   let transferSeason = null;
-  const TT_EN = { permanent: "Transfer", free: "Free", release: "Released", loan: "Loan", loan_return: "Loan return", youth_promotion: "Academy" };
-  const VERIFY = { verified: ["vf-ok", "✓ Official"], consistent: ["vf-none", "No conflict"], unverified: ["vf-none", "Unverified"], conflict: ["vf-bad", "⚠ Mismatch"] };
+  const TT_EN = { permanent: "완전 이적", free: "자유 이적", release: "방출", loan: "임대", loan_return: "임대 복귀", youth_promotion: "유스 승격" };
+  const VERIFY = { verified: ["vf-ok", "✓ 공식 확인"], consistent: ["vf-none", "모순 없음"], unverified: ["vf-none", "확인 불가"], conflict: ["vf-bad", "⚠ 불일치"] };
+  const MON = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
+  // 위키백과 이적료·비고 → 한글 (예: "Loan until 5 January 2027" → "2027.1.5까지 임대")
+  const feeKo = (f) => {
+    if (!f) return "-";
+    const fixed = { Free: "자유 이적", Undisclosed: "비공개", Released: "방출", Retired: "은퇴" };
+    if (fixed[f]) return fixed[f];
+    const m = f.match(/^Loan until (\d{1,2}) ([A-Za-z]+) (\d{4})$/);
+    if (m && MON[m[2].toLowerCase()]) return `${m[3]}.${MON[m[2].toLowerCase()]}.${m[1]}까지 임대`;
+    if (/^Loan until end of season$/i.test(f)) return "시즌 종료까지 임대";
+    return f;
+  };
   function verifyBadge(t) {
     const v = VERIFY[t.verify_status];
     return v ? `<span class="badge ${v[0]}" title="${esc(t.verify_note || "")}">${v[1]}</span>` : '<span class="small muted">-</span>';
   }
-  const CHECK_EN = { missing_in: "Joined per official data, missing from Wikipedia signings", missing_out: "Left / on loan per official data, missing from Wikipedia departures", conflict: "Wikipedia and official squad disagree" };
+  const CHECK_EN = { missing_in: "공식 데이터에는 합류, 위키백과 영입 목록에는 없음", missing_out: "공식 데이터에는 이탈·임대, 위키백과 방출 목록에는 없음", conflict: "위키백과와 공식 선수단 정보가 다름" };
   function pageTransfers() {
-    if (!D.transfers.length) return pageEmpty("이적 현황", "Signings · Departures · Loans", "No transfer data yet.");
+    if (!D.transfers.length) return pageEmpty("이적 현황", "영입 · 방출 · 임대", "이적 데이터가 아직 없습니다.");
     const seasons = [...new Set(D.transfers.map((t) => t.season).filter(Boolean))].sort().reverse();
     if (!transferSeason || !seasons.includes(transferSeason)) transferSeason = seasons[0];
     const list = D.transfers.filter((t) => t.season === transferSeason);
     const checks = (D.transfer_checks || []).filter((c) => c.season === transferSeason);
     const groups = [
-      ["영입", "Signings", list.filter((t) => t.direction === "in" && t.transfer_type !== "loan"), "from_club", "From"],
-      ["임대 영입", "Loans in", list.filter((t) => t.direction === "in" && t.transfer_type === "loan"), "from_club", "From"],
-      ["방출", "Departures", list.filter((t) => t.direction === "out" && t.transfer_type !== "loan"), "to_club", "To"],
-      ["임대 이적", "Loans out", list.filter((t) => t.direction === "out" && t.transfer_type === "loan"), "to_club", "To"],
-    ].filter((g) => g[2].length);
+      ["영입", list.filter((t) => t.direction === "in" && t.transfer_type !== "loan"), "from_club", "이전 팀"],
+      ["임대 영입", list.filter((t) => t.direction === "in" && t.transfer_type === "loan"), "from_club", "원소속 팀"],
+      ["방출", list.filter((t) => t.direction === "out" && t.transfer_type !== "loan"), "to_club", "이적 팀"],
+      ["임대 이적", list.filter((t) => t.direction === "out" && t.transfer_type === "loan"), "to_club", "임대 팀"],
+    ].filter((g) => g[1].length);
     const fromWiki = list.some((t) => (t.source || "").startsWith("wikipedia"));
-    return `${title("이적 현황")}<p class="page-sub">${esc(transferSeason)} · ${list.filter((t) => t.direction === "in").length} in · ${list.filter((t) => t.direction === "out").length} out</p>
+    return `${title("이적 현황")}<p class="page-sub">${esc(transferSeason)} · 영입 ${list.filter((t) => t.direction === "in").length}명 · 방출 ${list.filter((t) => t.direction === "out").length}명</p>
       <div class="filters">${seasons.map((s) => `<button data-tseason="${esc(s)}" class="${s === transferSeason ? "on" : ""}">${esc(s)}</button>`).join("")}</div>
-      ${groups.map(([ko, en, rows, clubKey, clubLabel]) => `<div class="card" style="margin-bottom:16px"><h2>${ko} <small>${en} · ${rows.length}</small></h2>
-        <div class="table-wrap"><table class="data"><thead><tr><th class="l">Date</th><th class="l">Pos</th><th class="l">Player</th><th class="l">${clubLabel}</th><th class="l">Type</th><th class="l">Fee / Note</th><th class="l">Check</th></tr></thead>
+      ${groups.map(([ko, rows, clubKey, clubLabel]) => `<div class="card" style="margin-bottom:16px"><h2>${ko} <small>${rows.length}명</small></h2>
+        <div class="table-wrap"><table class="data"><thead><tr><th class="l">날짜</th><th class="l">포지션</th><th class="l">선수</th><th class="l">${clubLabel}</th><th class="l">유형</th><th class="l">이적료 · 비고</th><th class="l">검증</th></tr></thead>
         <tbody>${rows.slice().sort((a, b) => (a.transfer_date < b.transfer_date ? 1 : -1)).map((t) => `<tr><td class="l small">${esc(t.transfer_date)}</td><td class="l small">${esc(t.position || "")}</td>
-          <td class="l"><b>${esc(t.player_name)}</b></td><td class="l">${esc(t[clubKey] || "-")}</td><td class="l small">${esc(TT_EN[t.transfer_type] || t.transfer_type || "")}</td><td class="l small muted">${esc(t.fee_text || "-")}</td><td class="l">${verifyBadge(t)}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}
-      ${checks.length ? `<div class="card" style="margin-bottom:16px"><h2>확인 필요 <small>Data checks · ${checks.length}</small></h2><ul class="match-list">${checks.map((c) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(c.player_name)}</b><div class="small muted">${esc(CHECK_EN[c.kind] || c.kind)}</div></div><div class="small muted">${esc((c.first_seen_utc || "").slice(0, 10))}</div></li>`).join("")}</ul></div>` : ""}
-      ${fromWiki ? `<p class="small muted">Source: <a href="${esc(list.find((t) => t.source_url)?.source_url || "https://en.wikipedia.org/")}" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0), cross-checked daily against the official first-team squad (football-data.org) and Fantasy Premier League player status. <b>✓ Official</b> = confirmed by official squad data · <b>No conflict</b> = departure not contradicted (player not in the official squad), but no direct official record · <b>Unverified</b> = player outside the first-team squad (e.g. academy), cannot be checked · <b>⚠ Mismatch</b> = Wikipedia and official data disagree. Fees are usually undisclosed officially.</p>` : ""}`;
+          <td class="l"><b>${esc(t.player_name)}</b></td><td class="l">${esc(t[clubKey] === "Unattached" ? "무소속" : t[clubKey] || "-")}</td><td class="l small">${esc(TT_EN[t.transfer_type] || t.transfer_type || "")}</td><td class="l small muted">${esc(feeKo(t.fee_text))}</td><td class="l">${verifyBadge(t)}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}
+      ${checks.length ? `<div class="card" style="margin-bottom:16px"><h2>확인 필요 <small>데이터 점검 · ${checks.length}건</small></h2><ul class="match-list">${checks.map((c) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(c.player_name)}</b><div class="small muted">${esc(CHECK_EN[c.kind] || c.kind)}</div></div><div class="small muted">${esc((c.first_seen_utc || "").slice(0, 10))}</div></li>`).join("")}</ul></div>` : ""}
+      ${fromWiki ? `<p class="small muted">출처: <a href="${esc(list.find((t) => t.source_url)?.source_url || "https://en.wikipedia.org/")}" target="_blank" rel="noopener">위키백과</a> 시즌 문서 (CC BY-SA 4.0). 매일 공식 1군 선수단(football-data.org)과 Fantasy Premier League 선수 상태로 대조합니다. <b>✓ 공식 확인</b> = 공식 선수단 데이터로 확인 · <b>모순 없음</b> = 공식 선수단에 없어 이탈과 모순되지 않지만 직접 공식 기록은 없음 · <b>확인 불가</b> = 1군 밖 선수(유스 등)라 대조 불가 · <b>⚠ 불일치</b> = 위키백과와 공식 데이터가 다름. 이적료는 대부분 공식 발표되지 않습니다.</p>` : ""}`;
   }
 
-  const TROPHY_EN = { PL: "League titles", FL1: "League titles", FAC: "FA Cup", ELC: "League Cup", UCL: "European Cup / UCL", UEL: "Europa League", UCWC: "Cup Winners' Cup", USC: "UEFA Super Cup", ICC: "Intercontinental Cup", CWC: "Club World Cup", CS: "Community Shield" };
+  const TROPHY_EN = { PL: "리그 우승", FL1: "리그 우승", FAC: "FA컵", ELC: "리그컵", UCL: "유러피언컵 · 챔피언스리그", UEL: "유로파리그", UCWC: "컵위너스컵", USC: "UEFA 슈퍼컵", ICC: "인터콘티넨털컵", CWC: "클럽 월드컵", CS: "커뮤니티 실드" };
+  const NAT_KO = { England: "잉글랜드", Scotland: "스코틀랜드", Wales: "웨일스", Ireland: "아일랜드", "Northern Ireland": "북아일랜드", Netherlands: "네덜란드", Norway: "노르웨이", Portugal: "포르투갈", Germany: "독일", Argentina: "아르헨티나", Spain: "스페인", France: "프랑스", Italy: "이탈리아" };
+  const PLACE_KO = { "Old Trafford": "올드 트래퍼드", Manchester: "맨체스터" };
+  const todayIso = new Date().toISOString().slice(0, 10);
   function pageHistory() {
     const c = D.club;
     const counts = {};
@@ -386,62 +414,64 @@
     const lastWin = (codes) => D.honours.filter((h) => codes.includes(h.code)).map((h) => h.season).sort().pop();
     const codesOf = (k) => Object.keys(TROPHY_EN).filter((c) => TROPHY_EN[c] === k);
     return `${title("클럽 역사")}
-      <p class="page-sub">Founded in ${esc(c.founded_year)} as ${esc(c.founded_as)} · ${esc(c.city)} · Home ground: ${esc(c.stadium)} (approx. ${Number(c.stadium_capacity).toLocaleString("en-GB")} seats)</p>
+      <p class="page-sub">${esc(c.founded_year)}년 ${esc(c.founded_as)}로 창단 · ${esc(PLACE_KO[c.city] || c.city)} · 홈구장 ${esc(PLACE_KO[c.stadium] || c.stadium)} (약 ${Number(c.stadium_capacity).toLocaleString("ko-KR")}석)</p>
       <div class="card" style="margin-bottom:16px"><h2>우승 기록</h2><div class="trophies">
-        ${Object.entries(counts).map(([k, n]) => `<div class="trophy"><b>${n}</b><span>${esc(k)}</span><small>Last: ${esc(lastWin(codesOf(k)) || "-")}</small></div>`).join("")}
+        ${Object.entries(counts).map(([k, n]) => `<div class="trophy"><b>${n}</b><span>${esc(k)}</span><small>최근 ${esc(lastWin(codesOf(k)) || "-")}</small></div>`).join("")}
       </div></div>
       <div class="grid">
         <div class="card span-8"><h2>주요 연표</h2><ul class="timeline">
-          ${D.timeline.map((t) => `<li class="${t.category === "trophy" ? "trophy-ev" : ""}"><div class="yr">${t.year}</div><div class="ttl">${esc(t.title || t.title_ko)}</div></li>`).join("")}
+          ${D.timeline.map((t) => `<li class="${t.category === "trophy" ? "trophy-ev" : ""}"><div class="yr">${t.year}</div><div class="ttl">${esc(t.title_ko || t.title)}</div></li>`).join("")}
         </ul></div>
         <div class="card span-4"><h2>역대 감독 <small>${D.managers.length}</small></h2><ul class="match-list managers">
-          ${D.managers.slice().reverse().map((m) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(m.name)}</b>${m.is_caretaker ? ' <span class="badge ha">Interim</span>' : ""}<div class="small muted">${esc([m.nationality, m.matches ? `P${m.matches} W${m.wins} D${m.draws} L${m.losses}` : "", m.note_en].filter(Boolean).join(" · "))}</div></div><div class="small muted" style="text-align:right">${esc(m.start_date)} –<br>${esc(m.end_date || "Present")}</div></li>`).join("")}
+          ${D.managers.slice().reverse().map((m) => `<li class="match" style="grid-template-columns:1fr auto"><div><b>${esc(m.name_ko || m.name)}</b>${m.name_ko ? ` <span class="small muted">${esc(m.name)}</span>` : ""}${m.is_caretaker ? ' <span class="badge ha">대행</span>' : ""}<div class="small muted">${esc([NAT_KO[m.nationality] || m.nationality, m.matches ? `${m.matches}경기 ${m.wins}승 ${m.draws}무 ${m.losses}패` : "", m.note].filter(Boolean).join(" · "))}</div></div><div class="small muted" style="text-align:right">${esc(m.start_date)} –<br>${m.start_date > todayIso ? "<b>부임 예정</b>" : esc(m.end_date || "현재")}</div></li>`).join("")}
         </ul></div>
       </div>`;
   }
 
-  // DB 의 한글 유럽대회 결과 → 영문
-  const europeEn = (s) => {
-    if (!s) return "";
-    const m = s.match(/리그 페이즈 (\d+)위/);
-    if (m) return `UCL league phase ${ord(+m[1])}${s.includes("진행") ? " (ongoing)" : ""}`;
-    return /[가-힣]/.test(s) ? "" : s;
-  };
+  // 위키백과 영문 대회 성적 → 한글 (긴 이름부터 바꿈)
+  const EURO_KO = [["UEFA Champions League", "챔피언스리그"], ["Champions League", "챔피언스리그"], ["European Cup", "유러피언컵"], ["UEFA Cup", "UEFA컵"],
+    ["Europa League", "유로파리그"], ["Cup Winners' Cup", "컵위너스컵"], ["Inter-Cities Fairs Cup", "페어스컵"], ["Super Cup", "슈퍼컵"],
+    ["Intercontinental Cup", "인터콘티넨털컵"], ["Club World Championship", "클럽 월드 챔피언십"], ["Club World Cup", "클럽 월드컵"],
+    ["Round of 16", "16강"], ["Runners-up", "준우승"], ["Winners", "우승"], ["Third place", "3위"], ["Group", "조별리그"],
+    [/\bQF\b/g, "8강"], [/\bSF\b/g, "4강"], [/\bQR(\d)\b/g, "예선 $1라운드"], [/\bRInt\b/g, "중간 라운드"], [/\bR(\d)\b/g, "$1라운드"],
+    ["(in progress)", "(진행 중)"]];
+  const resultKo = (s) => EURO_KO.reduce((t, [a, b]) => (typeof a === "string" ? t.split(a).join(b) : t.replace(a, b)), s || "");
 
   let recordsEra = "PL";
   const ERAS = {
-    PL: ["Premier League era", (r) => r.season >= "1992"],
+    PL: ["프리미어리그 시대", (r) => r.season >= "1992"],
     POST: ["1946–1992", (r) => r.season >= "1946" && r.season < "1992"],
     PRE: ["1888–1939", (r) => r.season < "1946"],
-    ALL: ["All seasons", () => true],
+    ALL: ["전체 시즌", () => true],
   };
-  const DIV_SHORT = { PL: "PL", FL1: "Div 1", FL2: "Div 2", FALL: "Alliance", COMB: "Combination" };
-  const cupTxt = (s) => (!s ? "–" : s === "Winners" ? "🏆 Winners" : esc(s));
+  const DIV_SHORT = { PL: "PL", FL1: "1부", FL2: "2부", FALL: "얼라이언스", COMB: "컴비네이션" };
+  const cupTxt = (s) => (!s ? "–" : s === "Winners" ? "🏆 우승" : esc(resultKo(s)));
   function pageRecords() {
     const all = D.seasons.slice().reverse();
     const rows = all.filter(ERAS[recordsEra][1]);
     const top = (r) => r.comp === "PL" || r.comp === "FL1";
     const cls = (r) => (r.position === 1 && top(r) ? "p1" : top(r) && r.position <= 4 ? "top4" : top(r) && r.position >= 15 ? "low" : "");
     const leagueTitles = all.filter((r) => r.position === 1 && r.is_final && top(r)).length;
-    const europe = (r) => (r.is_final ? [r.europe_competition, r.europe_result].filter(Boolean).join(" – ") : europeEn(r.europe_result));
+    const europe = (r) => (r.is_final ? resultKo([r.europe_competition, r.europe_result].filter(Boolean).join(" – "))
+      : (r.europe_result || "").replace("리그 페이즈", `${r.europe_competition ? resultKo(r.europe_competition) + " " : ""}리그 페이즈`));
     const fromWiki = all.some((r) => (r.source || "").startsWith("wikipedia"));
-    return `${title("시즌별 기록")}<p class="page-sub">${all.length} seasons since ${all.length ? esc(all[all.length - 1].season) : "-"} · ${leagueTitles} league titles</p>
+    return `${title("시즌별 기록")}<p class="page-sub">${all.length ? esc(all[all.length - 1].season) : "-"} 시즌부터 ${all.length}시즌 · 리그 우승 ${leagueTitles}회</p>
       <div class="filters">${Object.entries(ERAS).map(([k, [label]]) => `<button data-era="${k}" class="${k === recordsEra ? "on" : ""}">${label}</button>`).join("")}</div>
       <div class="card"><div class="table-wrap"><table class="data">
-        <thead><tr><th class="l">Season</th><th class="l">Div</th><th class="l">Pos</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>Pts</th><th class="l">FA Cup</th><th class="l">League Cup</th><th class="l">Europe</th><th class="l">Top scorer</th></tr></thead>
+        <thead><tr><th class="l">시즌</th><th class="l">리그</th><th class="l">순위</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득점</th><th>실점</th><th>승점</th><th class="l">FA컵</th><th class="l">리그컵</th><th class="l">유럽대항전</th><th class="l">최다 득점</th></tr></thead>
         <tbody>${rows.map((r) => `<tr class="${r.is_final ? "" : "mu"}"><td class="l">${esc(r.season)}</td><td class="l small">${esc(DIV_SHORT[r.comp] || r.comp)}</td>
-          <td class="l"><span class="pos ${cls(r)}">${r.position ?? "-"}</span>${r.is_final ? "" : ' <span class="small muted">live</span>'}</td>
+          <td class="l"><span class="pos ${cls(r)}">${r.position ?? "-"}</span>${r.is_final ? "" : ' <span class="small muted">진행 중</span>'}</td>
           <td>${r.played ?? "–"}</td><td>${r.won ?? "–"}</td><td>${r.drawn ?? "–"}</td><td>${r.lost ?? "–"}</td><td>${r.goals_for ?? "–"}</td><td>${r.goals_against ?? "–"}</td><td class="pts">${r.points ?? "–"}</td>
           <td class="l small">${cupTxt(r.fa_cup)}</td><td class="l small">${cupTxt(r.league_cup)}</td><td class="l small muted wrap">${esc(europe(r)) || "–"}</td>
-          <td class="l small">${r.top_scorer ? `${esc(r.top_scorer)} <span class="muted">(${r.top_scorer_goals ?? "?"}${r.top_scorer_note ? ", " + esc(r.top_scorer_note) : ""})</span>` : "–"}</td></tr>`).join("")}</tbody>
+          <td class="l small">${r.top_scorer ? `${esc(r.top_scorer)} <span class="muted">(${r.top_scorer_goals ?? "?"}${r.top_scorer_note ? ", PL 기준" : ""})</span>` : "–"}</td></tr>`).join("")}</tbody>
       </table></div>
-      <p class="small muted" style="margin-top:10px">Div 1 = Football League First Division (top flight before 1992-93), Div 2 = Second Division. Top scorer counts goals in all competitions (current season: Premier League goals only until the season ends). Cup results for the current season are worked out from match results. No league football 1915–19 and 1939–46 (World Wars).${fromWiki ? ' Historical records: <a href="https://en.wikipedia.org/wiki/List_of_Manchester_United_F.C._seasons" target="_blank" rel="noopener">Wikipedia</a> (CC BY-SA 4.0).' : ""}</p></div>`;
+      <p class="small muted" style="margin-top:10px">1부 = 풋볼 리그 1부 (1992-93 이전 최상위 리그), 2부 = 2부 리그. 최다 득점은 모든 대회 합계입니다 (진행 중인 시즌은 시즌이 끝날 때까지 프리미어리그 득점 기준). 진행 중인 시즌의 컵 성적은 경기 결과로 계산합니다. 1915–19년과 1939–46년은 세계대전으로 리그가 열리지 않았습니다.${fromWiki ? ' 과거 기록: <a href="https://en.wikipedia.org/wiki/List_of_Manchester_United_F.C._seasons" target="_blank" rel="noopener">위키백과</a> (CC BY-SA 4.0).' : ""}</p></div>`;
   }
 
   // ----- 경기 상세 (#match/<id>) -----
-  const EV_ROWS = [["goal", "⚽", "Goals"], ["own_goal", "⚽", "Own goals"], ["assist", "🅰️", "Assists"],
-    ["missed_penalty", "❌", "Penalties missed"], ["penalty_saved", "🧤", "Penalties saved"],
-    ["yellow", "🟨", "Yellow cards"], ["red", "🟥", "Red cards"]];
+  const EV_ROWS = [["goal", "⚽", "득점"], ["own_goal", "⚽", "자책골"], ["assist", "🅰️", "도움"],
+    ["missed_penalty", "❌", "페널티 실축"], ["penalty_saved", "🧤", "페널티 선방"],
+    ["yellow", "🟨", "경고"], ["red", "🟥", "퇴장"]];
   const grouped = (list) => {
     const c = new Map();
     for (const n of list) c.set(n, (c.get(n) || 0) + 1);
@@ -451,79 +481,79 @@
     const lu = det.lineup || [];
     const apif = det.src === "apif";
     if ((m.comp !== "PL" && !apif) || m.status !== "FINISHED") return "";
-    if (!lu.length) return `<div class="card span-12"><h2>출전 선수 <small>United line-up</small></h2><p class="muted">Line-up will appear after the next data sync.</p></div>`;
+    if (!lu.length) return `<div class="card span-12"><h2>출전 선수 <small>맨유</small></h2><p class="muted">다음 데이터 동기화 후 표시됩니다.</p></div>`;
     const ic = (p) => [p.goals ? "⚽".repeat(p.goals) : "", p.assists ? `<small class="muted">A${p.assists > 1 ? p.assists : ""}</small>` : "",
       p.yellow ? '<span class="card-y"></span>' : "", p.red ? '<span class="card-r"></span>' : ""].join(" ");
     const li = (p) => `<li><span class="pos">${esc(p.pos || "")}</span><b>${esc(p.name)}</b> ${ic(p)}<span class="min">${p.rating ? `<small class="muted">${Number(p.rating).toFixed(1)}</small> ` : ""}${p.minutes != null ? p.minutes + "'" : ""}</span></li>`;
     const xi = lu.filter((p) => p.starter), subs = lu.filter((p) => !p.starter);
     if (apif) {
-      return `<div class="card span-12"><h2>출전 선수 <small>United line-up${det.formation ? " · " + esc(det.formation) : ""}${det.opp_formation ? ` <span class="muted">(${esc(m.opponent)} ${esc(det.opp_formation)})</span>` : ""}</small></h2>
-      <div class="lineup"><div><h3>Starting XI <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
-      <div><h3>Substitutes used <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">None</li>'}</ul></div></div>
-      <p class="small muted" style="margin:10px 0 0">Source: API-Football (line-up, minutes, match rating). Unused substitutes are not shown.</p></div>`;
+      return `<div class="card span-12"><h2>출전 선수 <small>맨유${det.formation ? " · " + esc(det.formation) : ""}${det.opp_formation ? ` <span class="muted">(${esc(m.opponent)} ${esc(det.opp_formation)})</span>` : ""}</small></h2>
+      <div class="lineup"><div><h3>선발 <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
+      <div><h3>교체 출전 <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">없음</li>'}</ul></div></div>
+      <p class="small muted" style="margin:10px 0 0">출처: API-Football (출전 선수·출전 시간·평점). 출전하지 않은 교체 선수는 표시하지 않습니다.</p></div>`;
     }
-    return `<div class="card span-12"><h2>출전 선수 <small>United line-up</small></h2>
-      <div class="lineup"><div><h3>Starting XI <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
-      <div><h3>Substitutes used <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">None</li>'}</ul></div></div>
-      <p class="small muted" style="margin:10px 0 0">Source: Fantasy Premier League (starts &amp; minutes). Unused substitutes and formation are not available${xi.length !== 11 ? "; players who have since left the club may be missing" : ""}.</p></div>`;
+    return `<div class="card span-12"><h2>출전 선수 <small>맨유</small></h2>
+      <div class="lineup"><div><h3>선발 <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
+      <div><h3>교체 출전 <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">없음</li>'}</ul></div></div>
+      <p class="small muted" style="margin:10px 0 0">출처: Fantasy Premier League (선발·출전 시간). 출전하지 않은 교체 선수와 포메이션 정보는 없습니다${xi.length !== 11 ? ". 이후 팀을 떠난 선수는 빠져 있을 수 있습니다" : ""}.</p></div>`;
   }
   function pageMatch(id) {
     const m = matches.find((x) => String(x.id) === String(id)) || archMatches().find((x) => String(x.id) === String(id));
     if (!m && archiveState === "none" && ARCH_SEASONS.length) { loadArchive(); }
-    if (!m && archiveState === "loading") return `${title("경기 상세")}<div class="card empty"><b>Loading…</b></div>`;
-    if (!m) return `${title("경기 상세")}<div class="card empty"><b>Match not found</b><a href="#fixtures">Back to fixtures</a></div>`;
+    if (!m && archiveState === "loading") return `${title("경기 상세")}<div class="card empty"><b>불러오는 중…</b></div>`;
+    if (!m) return `${title("경기 상세")}<div class="card empty"><b>경기를 찾을 수 없습니다</b><a href="#fixtures">일정으로 돌아가기</a></div>`;
     const det = detailsOf(m.id) || { events: [] };
     const apif = det.src === "apif";
     const seasonFinished = m.season && m.season !== D.season ? archMatches().filter((x) => x.season === m.season && x.status === "FINISHED") : finished;
     const ev = det.events || [];
     const home = m.home_away !== "A";
     const L = home ? "MU" : "OPP", R = home ? "OPP" : "MU";
-    const teamName = (side) => (side === "MU" ? "Man United" : m.opponent);
-    const haOf = (side) => (m.home_away === "N" ? "Neutral" : (side === "MU") === home ? "Home" : "Away");
+    const teamName = (side) => (side === "MU" ? "맨유" : m.opponent);
+    const haOf = (side) => (m.home_away === "N" ? "중립" : (side === "MU") === home ? "홈" : "원정");
     const crest = (side) => (side === "MU" ? muCrest("crest") : m.opponent_crest ? `<img class="crest" src="${esc(m.opponent_crest)}" alt="">` : "");
     const done = m.status === "FINISHED";
     const minute = (e) => (e.minute != null ? ` ${e.minute}${e.extra_minute ? "+" + e.extra_minute : ""}'` : "");
-    const names = (side, type) => ev.filter((e) => e.side === side && e.type === type).map((e) => e.player + minute(e) + (e.detail === "pen" ? " (pen)" : ""));
+    const names = (side, type) => ev.filter((e) => e.side === side && e.type === type).map((e) => e.player + minute(e) + (e.detail === "pen" ? " (PK)" : ""));
     const muOnly = m.comp !== "PL" && !apif;  // 컵 대회(위키백과)는 맨유 득점자만 기록됨
     const rows = EV_ROWS.filter(([t]) => ev.some((e) => e.type === t)).map(([t, ic, label]) => `
-      <tr><td class="ev-l">${grouped(names(L, t)) || "–"}</td><th><span class="ic">${ic}</span>${label}</th><td class="ev-r">${grouped(names(R, t)) || (muOnly && R === "OPP" ? '<span class="muted">n/a</span>' : "–")}</td></tr>`).join("");
+      <tr><td class="ev-l">${grouped(names(L, t)) || "–"}</td><th><span class="ic">${ic}</span>${label}</th><td class="ev-r">${grouped(names(R, t)) || (muOnly && R === "OPP" ? '<span class="muted">기록 없음</span>' : "–")}</td></tr>`).join("");
     const bonus = ev.filter((e) => e.type === "bonus").sort((a, b) => b.detail - a.detail);
-    const md = m.matchday ? (m.comp === "PL" ? ` · Matchweek ${m.matchday}` : ` · Matchday ${m.matchday}`) : "";
+    const md = m.matchday ? (m.comp === "PL" ? ` · ${m.matchday}라운드` : ` · ${m.matchday}차전`) : (m.stage && /[a-z]/.test(m.stage) ? ` · ${esc(resultKo(m.stage.replace(/^Third round$/i, "R3").replace(/^Second round$/i, "R2").replace(/^Fourth round$/i, "R4").replace(/^Fifth round$/i, "R5").replace(/^Quarter-finals?$/i, "QF").replace(/^Semi-finals?$/i, "SF").replace(/^Final$/i, "결승")))}` : "");
     const idx = seasonFinished.findIndex((x) => x.id === m.id);
     const prev = idx > 0 ? seasonFinished[idx - 1] : null, next = idx >= 0 ? seasonFinished[idx + 1] : null;
     const st = det.stats || {};
-    const STAT_ROWS = [["poss", "Possession", "%"], ["shots", "Shots", ""], ["sot", "On target", ""], ["corners", "Corners", ""],
-      ["fouls", "Fouls", ""], ["offsides", "Offsides", ""], ["passes", "Passes", ""], ["pass_pct", "Pass accuracy", "%"], ["saves", "Saves", ""]];
+    const STAT_ROWS = [["poss", "점유율", "%"], ["shots", "슈팅", ""], ["sot", "유효 슈팅", ""], ["corners", "코너킥", ""],
+      ["fouls", "파울", ""], ["offsides", "오프사이드", ""], ["passes", "패스", ""], ["pass_pct", "패스 성공률", "%"], ["saves", "선방", ""]];
     const statCard = st.MU && st.OPP ? `<div class="card span-4"><h2>팀 기록</h2><table class="events"><thead><tr><th class="ev-l">${esc(teamName(L))}</th><th></th><th class="ev-r">${esc(teamName(R))}</th></tr></thead><tbody>
       ${STAT_ROWS.filter(([k]) => st.MU[k] != null || st.OPP[k] != null).map(([k, label, u]) => `<tr><td class="ev-l">${st[L][k] ?? "–"}${st[L][k] != null ? u : ""}</td><th>${label}</th><td class="ev-r">${st[R][k] ?? "–"}${st[R][k] != null ? u : ""}</td></tr>`).join("")}
-      </tbody></table><p class="small muted" style="margin:10px 0 0">Source: API-Football.</p></div>` : "";
-    const emptyMsg = !done ? "This match has not been played yet."
-      : m.comp === "PL" ? "Match details will appear after the next data sync."
-      : "Scorer and card details are not available for this competition on the free data plan.";
+      </tbody></table><p class="small muted" style="margin:10px 0 0">출처: API-Football.</p></div>` : "";
+    const emptyMsg = !done ? "아직 열리지 않은 경기입니다."
+      : m.comp === "PL" ? "다음 데이터 동기화 후 표시됩니다."
+      : "이 대회는 무료 데이터로 득점자·카드 기록을 제공하지 않습니다.";
     return `${title("경기 상세")}
-      <p class="page-sub"><a href="javascript:history.back()" class="back">← Back</a> · ${esc(compEn(m.comp))}${md}</p>
+      <p class="page-sub"><a href="javascript:history.back()" class="back">← 뒤로</a> · ${esc(compKo(m.comp))}${md}</p>
       <section class="board">
         <div class="board-team">${crest(L)}<b>${esc(teamName(L))}</b><span>${haOf(L)}</span></div>
         <div class="board-score">${done ? scoreText(m) : "vs"}${done ? `<div>${chip(m.result)}</div>` : ""}</div>
         <div class="board-team">${crest(R)}<b>${esc(teamName(R))}</b><span>${haOf(R)}</span></div>
-        <div class="board-meta">${m.kickoff_confirmed ? `${dateTime(m.kickoff_utc, KST)} KST · ${dateTime(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}` : `${shortDate(m.kickoff_utc, UK)} · Kick-off time not recorded`}${m.venue ? " · " + esc(m.venue) : ""}</div>
+        <div class="board-meta">${m.kickoff_confirmed ? `한국 ${dateTime(m.kickoff_utc, KST)} · 영국 ${dateTime(m.kickoff_utc, UK)} ${ukZone(m.kickoff_utc)}` : `${shortDate(m.kickoff_utc, UK)} · 킥오프 시각 기록 없음`}${m.venue ? " · " + esc(m.venue) : ""}</div>
       </section>
       <div class="grid">
         <div class="card span-8"><h2>경기 기록</h2>
           ${rows ? `<table class="events"><thead><tr><th class="ev-l">${esc(teamName(L))}</th><th></th><th class="ev-r">${esc(teamName(R))}</th></tr></thead><tbody>${rows}</tbody></table>
-            <p class="small muted" style="margin:10px 0 0">${apif ? "Source: API-Football match events (penalty shoot-out kicks not listed)."
+            <p class="small muted" style="margin:10px 0 0">${apif ? "출처: API-Football 경기 기록 (승부차기 키커는 표시하지 않음)."
               : muOnly
-              ? 'Source: <a href="https://en.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0). Only United scorers are recorded for this competition.'
-              : "Source: Fantasy Premier League match stats. Goal times are not available."}</p>`
+              ? '출처: <a href="https://en.wikipedia.org/" target="_blank" rel="noopener">위키백과</a> 시즌 문서 (CC BY-SA 4.0). 이 대회는 맨유 득점자만 기록됩니다.'
+              : "출처: Fantasy Premier League 경기 기록. 득점 시간 정보는 없습니다."}</p>`
           : `<p class="muted">${emptyMsg}</p>`}
         </div>
         ${apif ? statCard : `<div class="card span-4"><h2>최고 활약</h2>
           ${bonus.length ? `<ul class="bonus">${bonus.map((b) => `<li><b>${esc(b.detail)}</b><span>${esc(b.player)}${b.side === "MU" ? "" : ` <small class="muted">(${esc(m.opponent)})</small>`}</span></li>`).join("")}</ul>
-            <p class="small muted" style="margin:10px 0 0">FPL bonus points (3 = best in the match).${det.potm ? ` United's best: <b>${esc(det.potm)}</b>.` : ""}</p>` : `<p class="muted">Not available.</p>`}
+            <p class="small muted" style="margin:10px 0 0">FPL 보너스 점수 (3점 = 경기 최고 활약).${det.potm ? ` 맨유 최고 활약: <b>${esc(det.potm)}</b>.` : ""}</p>` : `<p class="muted">정보 없음</p>`}
         </div>`}
         ${lineupCard(det, m)}
         ${m.season && m.season !== D.season && !det.summary ? "" : `<div class="card span-12"><h2>경기 요약</h2>
-          ${det.summary ? `<p class="summary">${esc(det.summary)}</p><p class="small muted" style="margin:8px 0 0">Automatically generated from match data (${esc(det.model || "template")}).</p>` : `<p class="muted">${done ? "Summary will be generated after the next data sync." : "Available after full time."}</p>`}
+          ${det.summary ? `<p class="summary">${esc(det.summary)}</p><p class="small muted" style="margin:8px 0 0">경기 데이터로 자동 작성한 요약입니다 (${esc(det.model || "template")}).</p>` : `<p class="muted">${done ? "다음 데이터 동기화 후 요약이 생성됩니다." : "경기 종료 후 표시됩니다."}</p>`}
         </div>`}
       </div>
       <div class="pager">${prev ? `<a href="#match/${prev.id}">← vs ${esc(prev.opponent)}</a>` : "<span></span>"}${next ? `<a href="#match/${next.id}">vs ${esc(next.opponent)} →</a>` : "<span></span>"}</div>`;
@@ -572,7 +602,7 @@
   document.querySelector(".brand-mark").outerHTML = muCrest("brand-mark");
 
   const sync = D.synced_utc || (D.last_sync || []).map((s) => s.finished_utc).sort().pop() || D.generated_utc;
-  document.getElementById("sync-info").textContent = `Last data update: ${dateTime(sync, KST)} (KST)`;
+  document.getElementById("sync-info").textContent = `마지막 데이터 갱신: ${dateTime(sync, KST)} (한국 시간)`;
   // 다음 동기화 예상 시각 — .github/workflows/sync-and-deploy.yml + scripts/sync_needed.py 규칙과 동일
   //   매일 05:00 UTC 전체 동기화 / 30분마다 점검하되 '킥오프+2시간 지났는데 미종료 경기(최근 3일)'가 있을 때만 동기화
   const SYNC_DONE = ["FINISHED", "POSTPONED", "CANCELLED", "AWARDED", "SUSPENDED"];
@@ -600,17 +630,17 @@
     badge.classList.toggle("stale", stale);
     const n = nextSync(now);
     const next = n.kind === "awaiting"
-      ? `<span class="sb-next">Result pending<span class="long"> · checked every 30 min</span></span>`
-      : `<span class="sb-next">Next <b>~${esc(dateTime(new Date(n.t).toISOString(), KST))}</b>${n.kind === "result" ? `<span class="long"> (after ${esc(n.m.opponent)} match)</span>` : ""}</span>`;
+      ? `<span class="sb-next">결과 반영 대기<span class="long"> · 30분마다 확인</span></span>`
+      : `<span class="sb-next">다음 갱신 <b>~${esc(dateTime(new Date(n.t).toISOString(), KST))}</b>${n.kind === "result" ? `<span class="long"> (${esc(n.m.opponent)}전 후)</span>` : ""}</span>`;
     document.getElementById("sync-text").innerHTML =
-      `<span>${stale ? "Update delayed · " : ""}Data as of <b>${esc(dateTime(sync, KST))}</b><span class="long"> KST · ${ago(sync)}</span></span><span class="sb-sep" aria-hidden="true">|</span>${next}`;
-    const SRC = { "football-data": "Fixtures & tables", fpl: "Players" };
+      `<span>${stale ? "갱신 지연 · " : ""}데이터 기준 <b>${esc(dateTime(sync, KST))}</b><span class="long"> · ${ago(sync)}</span></span><span class="sb-sep" aria-hidden="true">|</span>${next}`;
+    const SRC = { "football-data": "일정·순위", fpl: "선수", rss: "뉴스", deepl: "뉴스 번역", wikipedia: "위키백과", "api-football": "과거 시즌" };
     badge.title = [
-      "Data as of = when this page's data was last refreshed. Next = expected next refresh (KST).",
-      "Schedule: daily 14:00 KST full refresh + every 30 min after a match until the result is in.",
-      "GitHub scheduled runs can start several to 30+ minutes late.",
+      "데이터 기준 = 이 페이지 데이터가 마지막으로 갱신된 시각, 다음 갱신 = 예상 갱신 시각 (모두 한국 시간).",
+      "일정: 매일 14:00 전체 갱신 + 경기 후에는 결과가 들어올 때까지 30분마다 확인.",
+      "GitHub 예약 실행은 몇 분에서 30분 넘게 늦게 시작될 수 있습니다.",
       "",
-      ...(D.last_sync || []).map((s) => `${SRC[s.source] || s.source} (${s.job}): ${dateTime(s.finished_utc, KST)} KST`),
+      ...(D.last_sync || []).map((s) => `${SRC[s.source] || s.source} (${s.job}): ${dateTime(s.finished_utc, KST)}`),
     ].join("\n");
   };
   renderSync();

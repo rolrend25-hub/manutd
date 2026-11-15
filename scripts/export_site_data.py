@@ -173,6 +173,11 @@ def main() -> None:
             SELECT source, job, MAX(finished_utc) AS finished_utc FROM sync_log
             WHERE status='ok' GROUP BY source, job"""),
     }
+    # 선수 상태 문구(FPL 영어) → 한글 (프리뷰와 같은 규칙, etl/build_preview.py)
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "etl"))
+    from build_preview import news_ko  # noqa: E402
+    for p in data["players"]:
+        p["news_ko"] = news_ko(p["news"], p["avail"], p["chance_next"]) if p["news"] else None
     data["match_details"] = match_details(con, [season])
     fill_live_season(data)
     # 지난 시즌 (경기 기록이 있는 시즌만) → archive.js 로 따로 (첫 화면 용량 유지)
