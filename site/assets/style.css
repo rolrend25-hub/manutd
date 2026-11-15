@@ -369,6 +369,7 @@ p.summary { margin: 0; font-size: 16px; line-height: 1.75; }
 .news-title { display: block; font-weight: 700; font-size: 15px; line-height: 1.35; text-decoration: none; }
 .news-title:hover { color: var(--red); text-decoration: underline; }
 .news-sum { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.news-orig { margin-top: 2px; font-size: 12px; color: var(--muted); opacity: .8; }
 .news-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
 .ntag { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
 .ntag.official { background: #e7f6ec; border-color: #bfe5cb; color: #17733a; }

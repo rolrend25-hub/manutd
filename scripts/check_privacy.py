@@ -45,7 +45,7 @@ ALLOWED = [
     "etl/*.py", "scripts/*.py", "notify/*.py",
     "docs/*.md", "docs/*.txt", "docs/*/*.html", "docs/*/*.md", "docs/*/*.png",
     "site/index.html", "site/*.html", "site/assets/*.css", "site/assets/*.js", "site/assets/img/*",
-    "site/data/data.json", "site/data/data.js",
+    "site/data/data.json", "site/data/data.js", "site/data/archive.js",
 ]
 
 MEDIA_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tif", ".tiff",

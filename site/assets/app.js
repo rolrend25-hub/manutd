@@ -38,6 +38,20 @@
   const koTime = (m, tz) => (m.kickoff_confirmed ? dateTime(m.kickoff_utc, tz) : `${shortDate(m.kickoff_utc, tz)} · TBC`);
   const matches = D.matches.slice().sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc));
   const finished = matches.filter((m) => m.status === "FINISHED");
+  // 지난 시즌 (data/archive.js — 일정·결과에서 지난 시즌을 고를 때만 불러옴)
+  const ARCH_SEASONS = D.archive_seasons || [];
+  let fixtureSeason = D.season, archiveState = window.MUFC_ARCHIVE ? "ready" : "none";
+  const archMatches = () => (window.MUFC_ARCHIVE ? window.MUFC_ARCHIVE.matches : []);
+  const detailsOf = (id) => (D.match_details || {})[String(id)] || ((window.MUFC_ARCHIVE || {}).match_details || {})[String(id)];
+  function loadArchive() {
+    if (archiveState !== "none" || !ARCH_SEASONS.length) return;
+    archiveState = "loading";
+    const s = document.createElement("script");
+    s.src = "data/archive.js?v=" + encodeURIComponent(D.generated_utc || "");
+    s.onload = () => { archiveState = "ready"; render(); };
+    s.onerror = () => { archiveState = "error"; render(); };
+    document.head.appendChild(s);
+  }
   const now = Date.now();
   const upcoming = matches.filter((m) => m.status !== "FINISHED" && !["CANCELLED"].includes(m.status) && new Date(m.kickoff_utc).getTime() > now - 3 * 3600e3);
   const plRow = (D.tables.PL || []).find((r) => r.is_mu);
@@ -169,8 +183,9 @@
       const rel = more.filter((x) => x.cluster === n.cluster && x.url !== n.url);
       return `<article class="news">
         <div class="news-meta"><span class="src t${n.tier}">${esc(n.source_name)}</span>${n.journalists ? n.journalists.split(",").map((j) => `<span class="jr">✎ ${esc(j)}</span>`).join("") : ""}<span class="muted">${n.published_utc ? ago(n.published_utc) : ""}</span></div>
-        <a class="news-title" href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
-        ${n.summary ? `<p class="news-sum">${esc(n.summary)}</p>` : ""}
+        <a class="news-title" href="${esc(n.url)}" target="_blank" rel="noopener"${n.title_ko ? ` title="${esc(n.title)}"` : ""}>${esc(n.title_ko || n.title)}</a>
+        ${n.title_ko ? `<div class="news-orig">${esc(n.title)}</div>` : ""}
+        ${n.summary ? `<p class="news-sum">${esc(n.summary_ko || n.summary)}</p>` : ""}
         <div class="news-tags">${(n.tags || "").split(",").filter(Boolean).map((t) => `<span class="ntag ${t === "공식" ? "official" : t === "루머" ? "rumour" : ""}">${esc(t)}</span>`).join("")}${rel.length ? `<span class="small muted">관련 기사 ${rel.length}건</span>` : ""}</div>
       </article>`;
     };
@@ -179,7 +194,7 @@
       <div class="filters news-filters">${NEWS_FILTERS.map((f) => `<button data-news="${f}" class="${f === newsFilter ? "on" : ""}">${f}</button>`).join("")}</div>
       ${shown.map(card).join("") || '<p class="muted">해당 뉴스가 없습니다.</p>'}
       ${!newsAll && list.length > 10 ? `<button class="news-more" data-news-more="1">뉴스 더 보기 (${list.length - 10})</button>` : ""}
-      <p class="small muted" style="margin:10px 0 0">BBC Sport · The Guardian · Sky Sports · Manchester Evening News 공식 RSS의 제목·요약과 원문 링크입니다. 태그와 기자 표시는 키워드 규칙으로 자동 분류해 틀릴 수 있습니다. 기자 이름은 기사에 언급된 경우에만 표시합니다.</p>
+      <p class="small muted" style="margin:10px 0 0">BBC Sport · The Guardian · Sky Sports · Manchester Evening News 공식 RSS의 제목·요약과 원문 링크입니다. ${(D.news || []).some((n) => n.title_ko) ? "한글 제목·요약은 DeepL 기계번역이라 어색하거나 틀릴 수 있습니다(영어 원제는 아래 회색 글씨). " : ""}태그와 기자 표시는 키워드 규칙으로 자동 분류해 틀릴 수 있습니다. 기자 이름은 기사에 언급된 경우에만 표시합니다.</p>
     </div>`;
   }
 
@@ -228,8 +243,18 @@
 
   let fixtureFilter = "ALL";
   function pageFixtures() {
-    const comps = ["ALL", ...new Set(matches.map((m) => m.comp))];
-    const list = matches.filter((m) => fixtureFilter === "ALL" || m.comp === fixtureFilter);
+    const past = fixtureSeason !== D.season;
+    if (past) loadArchive();
+    const src = past ? archMatches().filter((m) => m.season === fixtureSeason) : matches;
+    const comps = ["ALL", ...new Set(src.map((m) => m.comp))];
+    if (!comps.includes(fixtureFilter)) fixtureFilter = "ALL";
+    const list = src.filter((m) => fixtureFilter === "ALL" || m.comp === fixtureFilter);
+    const seasonBar = ARCH_SEASONS.length
+      ? `<div class="filters season-filters">${[D.season, ...ARCH_SEASONS].map((s) => `<button data-fseason="${s}" class="${s === fixtureSeason ? "on" : ""}">${s}</button>`).join("")}</div>` : "";
+    if (past && archiveState !== "ready") {
+      return `${title("일정 · 결과")}<p class="page-sub">${esc(fixtureSeason)} season</p>${seasonBar}
+        <div class="card empty">${archiveState === "error" ? "<b>Could not load past seasons</b>Please refresh the page." : "<b>Loading…</b>"}</div>`;
+    }
     let html = "", cur = "";
     for (const m of list) {
       const k = monthKey(m.kickoff_utc);
@@ -238,10 +263,13 @@
     }
     if (cur) html += "</ul>";
     return `${title("일정 · 결과")}
-      <p class="page-sub">${esc(D.season)} season · Dates in Korea time (KST) with UK time alongside (daylight saving applied automatically)</p>
+      <p class="page-sub">${esc(fixtureSeason)} season · Dates in Korea time (KST) with UK time alongside (daylight saving applied automatically)</p>
+      ${seasonBar}
       <div class="filters">${comps.map((c) => `<button data-filter="${c}" class="${c === fixtureFilter ? "on" : ""}">${c === "ALL" ? "All" : compEn(c)}</button>`).join("")}</div>
-      ${html}
-      <p class="small muted">* The free data plan only covers the Premier League and Champions League. FA Cup and EFL Cup fixtures will be added later.</p>`;
+      ${html || '<p class="muted">No matches recorded for this season yet.</p>'}
+      <p class="small muted">${past
+        ? `* Competitive matches only (friendlies excluded). ${fixtureSeason >= "2025" ? "Sources: football-data.org (Premier League) and Wikipedia (cups)." : "Source: API-Football — scores, goal times, cards, line-ups and team stats."}`
+        : "* Premier League and Champions League from football-data.org; FA Cup and EFL Cup from Wikipedia."}</p>`;
   }
 
   let tableComp = "PL";
@@ -428,37 +456,54 @@
   };
   function lineupCard(det, m) {
     const lu = det.lineup || [];
-    if (m.comp !== "PL" || m.status !== "FINISHED") return "";
+    const apif = det.src === "apif";
+    if ((m.comp !== "PL" && !apif) || m.status !== "FINISHED") return "";
     if (!lu.length) return `<div class="card span-12"><h2>출전 선수 <small>United line-up</small></h2><p class="muted">Line-up will appear after the next data sync.</p></div>`;
     const ic = (p) => [p.goals ? "⚽".repeat(p.goals) : "", p.assists ? `<small class="muted">A${p.assists > 1 ? p.assists : ""}</small>` : "",
       p.yellow ? '<span class="card-y"></span>' : "", p.red ? '<span class="card-r"></span>' : ""].join(" ");
-    const li = (p) => `<li><span class="pos">${esc(p.pos || "")}</span><b>${esc(p.name)}</b> ${ic(p)}<span class="min">${p.minutes != null ? p.minutes + "'" : ""}</span></li>`;
+    const li = (p) => `<li><span class="pos">${esc(p.pos || "")}</span><b>${esc(p.name)}</b> ${ic(p)}<span class="min">${p.rating ? `<small class="muted">${Number(p.rating).toFixed(1)}</small> ` : ""}${p.minutes != null ? p.minutes + "'" : ""}</span></li>`;
     const xi = lu.filter((p) => p.starter), subs = lu.filter((p) => !p.starter);
+    if (apif) {
+      return `<div class="card span-12"><h2>출전 선수 <small>United line-up${det.formation ? " · " + esc(det.formation) : ""}${det.opp_formation ? ` <span class="muted">(${esc(m.opponent)} ${esc(det.opp_formation)})</span>` : ""}</small></h2>
+      <div class="lineup"><div><h3>Starting XI <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
+      <div><h3>Substitutes used <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">None</li>'}</ul></div></div>
+      <p class="small muted" style="margin:10px 0 0">Source: API-Football (line-up, minutes, match rating). Unused substitutes are not shown.</p></div>`;
+    }
     return `<div class="card span-12"><h2>출전 선수 <small>United line-up</small></h2>
       <div class="lineup"><div><h3>Starting XI <small>${xi.length}</small></h3><ul>${xi.map(li).join("")}</ul></div>
       <div><h3>Substitutes used <small>${subs.length}</small></h3><ul>${subs.map(li).join("") || '<li class="muted">None</li>'}</ul></div></div>
       <p class="small muted" style="margin:10px 0 0">Source: Fantasy Premier League (starts &amp; minutes). Unused substitutes and formation are not available${xi.length !== 11 ? "; players who have since left the club may be missing" : ""}.</p></div>`;
   }
   function pageMatch(id) {
-    const m = matches.find((x) => String(x.id) === String(id));
+    const m = matches.find((x) => String(x.id) === String(id)) || archMatches().find((x) => String(x.id) === String(id));
+    if (!m && archiveState === "none" && ARCH_SEASONS.length) { loadArchive(); }
+    if (!m && archiveState === "loading") return `${title("경기 상세")}<div class="card empty"><b>Loading…</b></div>`;
     if (!m) return `${title("경기 상세")}<div class="card empty"><b>Match not found</b><a href="#fixtures">Back to fixtures</a></div>`;
-    const det = (D.match_details || {})[String(m.id)] || { events: [] };
+    const det = detailsOf(m.id) || { events: [] };
+    const apif = det.src === "apif";
+    const seasonFinished = m.season && m.season !== D.season ? archMatches().filter((x) => x.season === m.season && x.status === "FINISHED") : finished;
     const ev = det.events || [];
     const home = m.home_away !== "A";
     const L = home ? "MU" : "OPP", R = home ? "OPP" : "MU";
     const teamName = (side) => (side === "MU" ? "Man United" : m.opponent);
-    const haOf = (side) => ((side === "MU") === home ? "Home" : "Away");
+    const haOf = (side) => (m.home_away === "N" ? "Neutral" : (side === "MU") === home ? "Home" : "Away");
     const crest = (side) => (side === "MU" ? muCrest("crest") : m.opponent_crest ? `<img class="crest" src="${esc(m.opponent_crest)}" alt="">` : "");
     const done = m.status === "FINISHED";
     const minute = (e) => (e.minute != null ? ` ${e.minute}${e.extra_minute ? "+" + e.extra_minute : ""}'` : "");
     const names = (side, type) => ev.filter((e) => e.side === side && e.type === type).map((e) => e.player + minute(e) + (e.detail === "pen" ? " (pen)" : ""));
-    const muOnly = m.comp !== "PL";  // 컵 대회(위키백과)는 맨유 득점자만 기록됨
+    const muOnly = m.comp !== "PL" && !apif;  // 컵 대회(위키백과)는 맨유 득점자만 기록됨
     const rows = EV_ROWS.filter(([t]) => ev.some((e) => e.type === t)).map(([t, ic, label]) => `
       <tr><td class="ev-l">${grouped(names(L, t)) || "–"}</td><th><span class="ic">${ic}</span>${label}</th><td class="ev-r">${grouped(names(R, t)) || (muOnly && R === "OPP" ? '<span class="muted">n/a</span>' : "–")}</td></tr>`).join("");
     const bonus = ev.filter((e) => e.type === "bonus").sort((a, b) => b.detail - a.detail);
     const md = m.matchday ? (m.comp === "PL" ? ` · Matchweek ${m.matchday}` : ` · Matchday ${m.matchday}`) : "";
-    const idx = finished.findIndex((x) => x.id === m.id);
-    const prev = idx > 0 ? finished[idx - 1] : null, next = idx >= 0 ? finished[idx + 1] : null;
+    const idx = seasonFinished.findIndex((x) => x.id === m.id);
+    const prev = idx > 0 ? seasonFinished[idx - 1] : null, next = idx >= 0 ? seasonFinished[idx + 1] : null;
+    const st = det.stats || {};
+    const STAT_ROWS = [["poss", "Possession", "%"], ["shots", "Shots", ""], ["sot", "On target", ""], ["corners", "Corners", ""],
+      ["fouls", "Fouls", ""], ["offsides", "Offsides", ""], ["passes", "Passes", ""], ["pass_pct", "Pass accuracy", "%"], ["saves", "Saves", ""]];
+    const statCard = st.MU && st.OPP ? `<div class="card span-4"><h2>팀 기록</h2><table class="events"><thead><tr><th class="ev-l">${esc(teamName(L))}</th><th></th><th class="ev-r">${esc(teamName(R))}</th></tr></thead><tbody>
+      ${STAT_ROWS.filter(([k]) => st.MU[k] != null || st.OPP[k] != null).map(([k, label, u]) => `<tr><td class="ev-l">${st[L][k] ?? "–"}${st[L][k] != null ? u : ""}</td><th>${label}</th><td class="ev-r">${st[R][k] ?? "–"}${st[R][k] != null ? u : ""}</td></tr>`).join("")}
+      </tbody></table><p class="small muted" style="margin:10px 0 0">Source: API-Football.</p></div>` : "";
     const emptyMsg = !done ? "This match has not been played yet."
       : m.comp === "PL" ? "Match details will appear after the next data sync."
       : "Scorer and card details are not available for this competition on the free data plan.";
@@ -473,19 +518,20 @@
       <div class="grid">
         <div class="card span-8"><h2>경기 기록</h2>
           ${rows ? `<table class="events"><thead><tr><th class="ev-l">${esc(teamName(L))}</th><th></th><th class="ev-r">${esc(teamName(R))}</th></tr></thead><tbody>${rows}</tbody></table>
-            <p class="small muted" style="margin:10px 0 0">${muOnly
+            <p class="small muted" style="margin:10px 0 0">${apif ? "Source: API-Football match events (penalty shoot-out kicks not listed)."
+              : muOnly
               ? 'Source: <a href="https://en.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a> season article (CC BY-SA 4.0). Only United scorers are recorded for this competition.'
               : "Source: Fantasy Premier League match stats. Goal times are not available."}</p>`
           : `<p class="muted">${emptyMsg}</p>`}
         </div>
-        <div class="card span-4"><h2>최고 활약</h2>
+        ${apif ? statCard : `<div class="card span-4"><h2>최고 활약</h2>
           ${bonus.length ? `<ul class="bonus">${bonus.map((b) => `<li><b>${esc(b.detail)}</b><span>${esc(b.player)}${b.side === "MU" ? "" : ` <small class="muted">(${esc(m.opponent)})</small>`}</span></li>`).join("")}</ul>
             <p class="small muted" style="margin:10px 0 0">FPL bonus points (3 = best in the match).${det.potm ? ` United's best: <b>${esc(det.potm)}</b>.` : ""}</p>` : `<p class="muted">Not available.</p>`}
-        </div>
+        </div>`}
         ${lineupCard(det, m)}
-        <div class="card span-12"><h2>경기 요약</h2>
+        ${m.season && m.season !== D.season && !det.summary ? "" : `<div class="card span-12"><h2>경기 요약</h2>
           ${det.summary ? `<p class="summary">${esc(det.summary)}</p><p class="small muted" style="margin:8px 0 0">Automatically generated from match data (${esc(det.model || "template")}).</p>` : `<p class="muted">${done ? "Summary will be generated after the next data sync." : "Available after full time."}</p>`}
-        </div>
+        </div>`}
       </div>
       <div class="pager">${prev ? `<a href="#match/${prev.id}">← vs ${esc(prev.opponent)}</a>` : "<span></span>"}${next ? `<a href="#match/${next.id}">vs ${esc(next.opponent)} →</a>` : "<span></span>"}</div>`;
   }
@@ -504,6 +550,8 @@
   app.addEventListener("click", (e) => {
     const f = e.target.closest("[data-filter]");
     if (f) { fixtureFilter = f.dataset.filter; render(); }
+    const fs = e.target.closest("[data-fseason]");
+    if (fs) { fixtureSeason = fs.dataset.fseason; fixtureFilter = "ALL"; render(); }
     const t = e.target.closest("[data-table]");
     if (t) { tableComp = t.dataset.table; render(); }
     const ts = e.target.closest("[data-tseason]");

@@ -64,7 +64,7 @@ GitHub 저장소 (private)
 - [x] (2026-11-12) PL 출전 선수 — `etl/fetch_players.py` 가 FPL 경기별 'starts' → `match_lineups`(맨유 선발/교체, 등번호·포지션). 웹 경기 상세 '출전 선수'(선발 XI·교체 출전, 출전시간·골·도움·카드). 벤치 미출전·포메이션·상대 팀 라인업은 무료 출처 없음. 검증: 선발 11명 초과 오류, 미만 경고(시즌 중 이적 선수 누락 가능). 이번 시즌 10경기 모두 선발 11명
 - [x] (2026-11-12) `etl/sync_honours.py` — 우승 기록 자동 계산: 시즌 기록(리그 1위·FA컵/리그컵/유럽대회·슈퍼컵·인터컨티넨털컵·클럽월드컵 Winners) + 진행 중 시즌 결승 승리(승부차기 포함, 커뮤니티실드 포함) → 없으면 `honours` 추가(note 'auto: …'), 기존 기록인데 근거 없으면 ⚠ (커뮤니티실드 과거분은 근거 데이터 없어 비교 제외). 기존 47건 전부 일치 확인
 - [x] (2026-11-12) `etl/fetch_club.py` — 매 동기화 실행. ① 감독: football-data `/teams/66` 공식 현직 감독 + 위키백과 'List of Manchester United F.C. managers' 전체 33명(재임 기간·전적·임시 감독) → `managers`. 위키 현직 = 공식일 때만 교체, 다르면 기존 유지 + ⚠ 알림, 감독 교체 시 ⚠ 알림 1회 (Amorim → Carrick 2026-01-13 반영) ② 이적 교차검증: 위키 이적 ↔ 공식 1군 명단(football-data)·FPL 상태(입단일·이탈·임대) → `transfers.verify_status` (verified 공식 확인 / consistent 모순 없음 / unverified 확인 불가(유스 등) / conflict 불일치), 위키 누락 의심(FPL 입단·이탈인데 위키 기록 없음) → `transfer_checks`. 새 불일치·누락만 ⚠ 알림(GitHub 이슈), 해소 시 자동 해소 처리. 현재 시즌만 검증. 웹 '이적' Check 열·'확인 필요' 목록, '역사' 역대 감독 전체·전적
-- [ ] (선택) API-Football 무료로 2022-23~2024-25 시즌 라인업·이벤트 백필
+- [~] (2026-11-15 시작) `etl/backfill_apif.py` — API-Football 무료로 2022-23~2024-25 공식 경기 174경기(친선전 제외) 백필: 스코어·전반 스코어·승부차기, 골(분·PK)·도움·자책골·카드, 양 팀 선발·실제 교체 출전·포메이션, 팀 스탯(점유율·슈팅·패스 등), 맨유 선수 경기 기록(출전시간·평점 등). 무료 플랜은 `ids` 묶음 조회 불가 → 경기당 1회, 하루 100회 한도라 2~3일에 나눠 수집. Actions ETL 에 포함(남은 경기만 이어서, 끝나면 호출 없음, Secrets `API_FOOTBALL_KEY` 필요). 검증: 골 이벤트 수 = 스코어. 웹 '일정·결과' 시즌 선택(지난 시즌은 `site/data/archive.js` 로 따로 불러옴) + 경기 상세(시간대별 이벤트·라인업·팀 기록)
 - [x] (2026-11-09) `etl/backfill_history.py` — 위키백과 'List of Manchester United F.C. seasons' → 1888-89~2025-26 128시즌 리그 성적·FA컵·리그컵·유럽대회·최다 득점자 (`season_standings`). 검증: W+D+L=경기 수, 승점(1990-91 1점 감점 예외), 1992년 이후 기존 순위 일치. 웹 '시즌 기록' 시대별 필터
 - [x] (2026-11-09) 2025-26 시즌 백필: PL 38경기·순위표(football-data, 위키와 일치 확인) + FA컵·EFL컵(위키). 선수별 경기 기록은 무료 출처 없음(FPL 은 현재 시즌만)
 
@@ -79,7 +79,8 @@ GitHub 저장소 (private)
 - [x] (2026-11-12) 메인 화면 개편 (AI 미사용, 사용자 결정): 상단 '다음 경기' 바 + 왼쪽 매치 프리뷰 + 오른쪽 주요 뉴스 카드
   - `etl/build_preview.py` → `match_previews`: 맨유·상대 최근 흐름(규칙 문장), 순위, 핵심 선수, 푸아송 승부 예측, 양 팀 부상(FPL, PL 팀만), 예상 선발(최근 PL 5경기 선발 가중), 맞대결(football-data)
   - `etl/fetch_news.py` → `news_items`: BBC·Guardian·Sky·MEN 공식 RSS 제목·요약·링크, 키워드 태그(감독·이적·부상·경기·공식·루머), 기사에 언급된 기자 표시, 21일 보관
-  - 한계: 뉴스 제목·요약은 영어 원문 그대로 (번역은 AI 필요), X(트위터) 직접 수집 없음, 예측은 상대 수준·전술 미반영
+  - 한계: X(트위터) 직접 수집 없음, 예측은 상대 수준·전술 미반영
+- [~] (2026-11-15) 뉴스 한글 번역 `etl/translate_news.py` — **DeepL API Free** (기계번역, LLM 아님, 사용자 결정): 새 기사·원문 바뀐 기사만 번역 → `news_items.title_ko/summary_ko`, 월 50만 자 무료 한도의 90%에서 자동 중단(과금 없음, 영어 원문 표시). 웹은 한글 제목 + 회색 영어 원제. Actions ETL 에 포함. **사용자 작업 필요: DeepL API Free 가입·키 발급 → `.env` + Secrets `DEEPL_API_KEY`**
 
 ### STEP 3. 알림 자동화
 - [x] (2026-11-09 로그인·시험 메시지·Secrets 등록 완료) 카카오 토큰 최초 발급 `scripts/kakao_login.py` (브라우저 로그인 1회 → `.env` 저장 + 시험 메시지) + 리프레시 토큰 자동 갱신: `notify/kakao.py` 가 새 토큰을 받으면 로컬은 `.env`, Actions 는 Secrets(`GH_SECRETS_TOKEN` 개인 토큰, 이 저장소 Secrets 쓰기 권한만)에 자동 저장
@@ -104,3 +105,4 @@ GitHub 저장소 (private)
 2. 데이터 API: **무료 플랜만 사용**. API-Football 무료가 현재 시즌을 막으면 유료 결제 없이 **football-data + FPL** 로 구성 (PL 외 대회 선수 스탯·상세 이벤트는 제외 또는 football-data 범위 내에서만 표시). API-Football은 접근 가능한 범위에서 보조로만 사용
 3. 폰 알람: **Google 캘린더 API** (알림 1일 전·1시간 전)
 4. 경기 분석: **Claude API 미사용** (Pro 구독과 API는 별도 과금) → 무료 템플릿 요약. 2026-11-12 재확인: 프리뷰·뉴스 포함 사이트 전체에 LLM 호출 추가하지 않음
+5. 뉴스 번역 (2026-11-15): LLM 대신 **DeepL API Free** 기계번역 (월 50만 자 무료, 초과 시 과금 없이 중단)
