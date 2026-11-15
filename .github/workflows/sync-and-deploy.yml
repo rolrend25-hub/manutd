@@ -48,6 +48,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # 요청 시점 커밋이 아니라 브랜치 최신 커밋 — 앞선 실행이 대기 중에 데이터를 푸시해도 거절되지 않게
+          ref: ${{ github.ref }}
           fetch-depth: 2
 
       - uses: actions/setup-python@v5
