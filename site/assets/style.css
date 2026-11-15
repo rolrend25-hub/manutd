@@ -40,7 +40,9 @@ img { max-width: 100%; }
 .sync-badge.stale .dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(251,225,34,.2); }
 .sync-badge.stale { color: var(--gold); }
 .sync-badge.none .dot { background: #777; box-shadow: none; }
-@media (max-width: 480px) { .sync-badge .long { display: none; } }
+.sync-badge .sb-sep { color: #555; margin: 0 2px; }
+.sync-badge .sb-next b { color: var(--gold); }
+@media (max-width: 480px) { .sync-badge .long { display: none; } .sync-badge { font-size: 11.5px; gap: 5px; } }
 
 /* ---------- header ---------- */
 .site-header {

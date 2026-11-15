@@ -583,18 +583,47 @@
 
   const sync = D.synced_utc || (D.last_sync || []).map((s) => s.finished_utc).sort().pop() || D.generated_utc;
   document.getElementById("sync-info").textContent = `Last data update: ${dateTime(sync, KST)} (KST)`;
-  // 우측 상단 동기화 배지 (36시간 넘게 갱신 없으면 노란색 경고)
+  // 다음 동기화 예상 시각 — .github/workflows/sync-and-deploy.yml + scripts/sync_needed.py 규칙과 동일
+  //   매일 05:00 UTC 전체 동기화 / 30분마다 점검하되 '킥오프+2시간 지났는데 미종료 경기(최근 3일)'가 있을 때만 동기화
+  const SYNC_DONE = ["FINISHED", "POSTPONED", "CANCELLED", "AWARDED", "SUSPENDED"];
+  const nextSync = (now) => {
+    const open = matches.filter((m) => !SYNC_DONE.includes(m.status) && m.kickoff_confirmed !== 0);
+    const kick = (m) => new Date(m.kickoff_utc).getTime();
+    if (open.some((m) => kick(m) + 2 * 3600e3 <= now && kick(m) >= now - 3 * 864e5)) return { kind: "awaiting" };
+    const d = new Date(now);
+    let daily = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 5, 0);
+    if (daily <= now) daily += 864e5;
+    const nm = open.find((m) => kick(m) + 2 * 3600e3 > now);
+    if (nm) {
+      const slot = Math.ceil((kick(nm) + 2 * 3600e3) / 1800e3) * 1800e3; // 킥오프+2시간 이후 첫 30분 점검
+      if (slot < daily) return { kind: "result", t: slot, m: nm };
+    }
+    return { kind: "daily", t: daily };
+  };
+
+  // 우측 상단 동기화 배지: 지금 보는 데이터의 기준 시각 + 다음 갱신 예정 (36시간 넘게 갱신 없으면 노란색 경고)
   const badge = document.getElementById("sync-badge");
-  if (sync) {
-    const ageH = (Date.now() - new Date(sync).getTime()) / 3600e3;
-    const stale = ageH > 36;
+  const renderSync = () => {
+    if (!sync) { badge.classList.add("none"); return; }
+    const now = Date.now();
+    const stale = (now - new Date(sync).getTime()) / 3600e3 > 36;
     badge.classList.toggle("stale", stale);
+    const n = nextSync(now);
+    const next = n.kind === "awaiting"
+      ? `<span class="sb-next">Result pending<span class="long"> · checked every 30 min</span></span>`
+      : `<span class="sb-next">Next <b>~${esc(dateTime(new Date(n.t).toISOString(), KST))}</b>${n.kind === "result" ? `<span class="long"> (after ${esc(n.m.opponent)} match)</span>` : ""}</span>`;
     document.getElementById("sync-text").innerHTML =
-      `<span class="long">${stale ? "Update delayed · " : "Data synced "}</span><b>${esc(dateTime(sync, KST))}</b> KST`;
+      `<span>${stale ? "Update delayed · " : ""}Data as of <b>${esc(dateTime(sync, KST))}</b><span class="long"> KST · ${ago(sync)}</span></span><span class="sb-sep" aria-hidden="true">|</span>${next}`;
     const SRC = { "football-data": "Fixtures & tables", fpl: "Players" };
-    badge.title = (D.last_sync || []).map((s) => `${SRC[s.source] || s.source} (${s.job}): ${dateTime(s.finished_utc, KST)} KST`).join("\n");
-  } else {
-    badge.classList.add("none");
-  }
+    badge.title = [
+      "Data as of = when this page's data was last refreshed. Next = expected next refresh (KST).",
+      "Schedule: daily 14:00 KST full refresh + every 30 min after a match until the result is in.",
+      "GitHub scheduled runs can start several to 30+ minutes late.",
+      "",
+      ...(D.last_sync || []).map((s) => `${SRC[s.source] || s.source} (${s.job}): ${dateTime(s.finished_utc, KST)} KST`),
+    ].join("\n");
+  };
+  renderSync();
+  setInterval(renderSync, 60e3);
   render();
 })();
