@@ -170,7 +170,7 @@ def sync_managers(con, coach: dict | None, dry: bool) -> None:
             log.rows += 1
         log.message = f"rev={rev} managers={len(rows)} current={cur[0]['name']} official={official}"
         con.commit()
-    print(f"OK - 감독 {len(rows)}명 저장, 현직 {cur[0]['name']} (공식 일치)")
+    print(f"OK - 감독 {len(rows)}명 저장, 현직 {cur[0]['name']} ({'공식 데이터 갱신 대기' if '갱신 대기' in official else '공식 일치'})")
 
 
 # ---------------------------------------------------------------- 이적 검증
