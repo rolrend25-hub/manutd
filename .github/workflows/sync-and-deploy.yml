@@ -9,7 +9,7 @@ name: Sync data & deploy site
 #   5) 개인정보·비밀값 검사 (커밋 직전 staged)
 #   6) 커밋·푸시 → Pages 배포
 #   7) 구글 캘린더 동기화 (동기화·커밋한 경우만, 저장소 변경 없음)
-#   8) 알림: 문제 있으면 GitHub 이슈(소유자 할당 → 이메일·모바일 푸시), 복구되면 자동 닫힘
+#   8) 알림: 문제 있으면 GitHub 이슈(소유자 할당 → 이메일·모바일 푸시) + 카톡(새 문제·변경·복구 때 1회), 복구되면 자동 닫힘
 # 1·2·4·5 중 하나라도 실패하면 커밋·배포하지 않음.
 
 on:
@@ -189,6 +189,10 @@ jobs:
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}     # 오류·복구 카톡 알림
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          KAKAO_REFRESH_TOKEN: ${{ secrets.KAKAO_REFRESH_TOKEN }}
+          GH_SECRETS_TOKEN: ${{ secrets.GH_SECRETS_TOKEN }}
           OUT_PRIVACY: ${{ steps.privacy.outcome }}
           OUT_SOURCES: ${{ steps.testalert.outcome == 'failure' && 'failure' || steps.sources.outcome }}
           OUT_ETL: ${{ steps.etl.outcome }}

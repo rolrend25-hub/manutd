@@ -53,6 +53,9 @@ def exchange_code(env: dict, code: str, redirect_uri: str) -> dict:
 
 def access_token(env: dict) -> str:
     """리프레시 토큰으로 액세스 토큰 발급. 새 리프레시 토큰이 오면 저장까지 처리."""
+    rt_file = _run_rt_file()
+    if rt_file and rt_file.exists():  # 같은 Actions 실행 안에서 앞 단계가 이미 새 토큰을 받았으면 그것을 사용
+        env["KAKAO_REFRESH_TOKEN"] = rt_file.read_text(encoding="utf-8").strip()
     if not env.get("KAKAO_REFRESH_TOKEN"):
         raise KakaoError("KAKAO_REFRESH_TOKEN 이 없습니다. 먼저 python scripts/kakao_login.py 로 로그인하세요.")
     res = _post(f"{AUTH}/oauth/token", {
@@ -69,9 +72,16 @@ def access_token(env: dict) -> str:
     return res["access_token"]
 
 
+def _run_rt_file():
+    from pathlib import Path
+    t = os.environ.get("RUNNER_TEMP") if os.environ.get("GITHUB_ACTIONS") == "true" else None
+    return Path(t) / "kakao_rt" if t else None
+
+
 def save_refresh_token(token: str) -> None:
     if os.environ.get("GITHUB_ACTIONS") == "true":
         print(f"::add-mask::{token}")
+        _run_rt_file().write_text(token, encoding="utf-8")  # 같은 실행의 다음 단계(오류 카톡 알림)용
         _update_github_secret("KAKAO_REFRESH_TOKEN", token)
     else:
         _update_env_file("KAKAO_REFRESH_TOKEN", token)

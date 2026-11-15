@@ -4,7 +4,8 @@
   → GitHub 이메일 + GitHub 모바일 앱 푸시로 알림
   (같은 내용이 반복되면 새 알림을 만들지 않음, 내용이 바뀌면 댓글 추가)
 - 모두 정상이면 열려 있는 알림 이슈를 '정상 복구' 댓글과 함께 닫음
-- (STEP 3 에서 카카오 토큰 설정 후 카톡 알림 채널 추가 예정)
+- 카톡 '나에게 보내기'로도 알림 (2026-11-15): 새 문제 발생·내용 변경·정상 복구 때만 1회.
+  같은 문제가 계속되는 동안은 다시 보내지 않음. 카톡 전송이 실패해도 GitHub 이슈 알림은 그대로 (실행 실패로 보지 않음)
 
 환경변수: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_REPOSITORY_OWNER, GITHUB_RUN_ID, GITHUB_SERVER_URL,
           REPORT_DIR (각 점검 출력 .txt), OUT_<단계>=success|failure|skipped|cancelled
@@ -16,6 +17,9 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "etl"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "notify"))
 
 API = "https://api.github.com"
 LABEL = "auto-alert"
@@ -42,6 +46,32 @@ def gh(method: str, path: str, body=None):
         return json.loads(txt) if txt else None
 
 
+def kakao(text: str) -> None:
+    """오류 알림 카톡. 실패해도 예외를 밖으로 내지 않음 (GitHub 이슈가 기본 알림 경로)."""
+    try:
+        from common import load_env
+        import kakao as kk
+        env = load_env()
+        if not env.get("KAKAO_REFRESH_TOKEN"):
+            print("카톡 알림 건너뜀 (카카오 토큰 없음)")
+            return
+        kk.send_memo(kk.access_token(env), text, button="사이트 열기")
+        print("카톡 오류 알림 전송")
+    except Exception as e:  # noqa: BLE001
+        print(f"카톡 오류 알림 실패 (GitHub 이슈로만 알림): {str(e)[:150]}")
+
+
+def kakao_text(title: str, failed: list, lines: list, number) -> str:
+    head = title.replace("**", "")
+    body = [f"[맨유 사이트] {head}"]
+    body += [f"✗ {n}" for n in failed[:3]]
+    body += [ln[:70] for ln in lines[:3]]
+    if len(failed) + len(lines) > 6:
+        body.append(f"외 {len(failed) + len(lines) - 6}건")
+    body.append(f"GitHub 이슈 #{number} 확인")
+    return "\n".join(body)
+
+
 def main() -> int:
     repo = os.environ["GITHUB_REPOSITORY"]
     owner = os.environ.get("GITHUB_REPOSITORY_OWNER", repo.split("/")[0])
@@ -63,7 +93,9 @@ def main() -> int:
                {"body": f"✅ 정상 복구 — 모든 점검 통과\n\n실행 기록: {run_url}"})
             gh("PATCH", f"/repos/{repo}/issues/{iss['number']}", {"state": "closed"})
             print(f"알림 이슈 #{iss['number']} 닫음 (정상 복구)")
-        print("모든 점검 통과 — 알림 없음")
+        if open_issues:
+            kakao(f"[맨유 사이트] ✅ 정상 복구\n자동 점검이 모두 통과했습니다. (이슈 #{open_issues[0]['number']} 닫음)")
+        print("모든 점검 통과" + (" — 복구 알림 전송" if open_issues else " — 알림 없음"))
         return 0
 
     privacy = any("개인정보" in n for n in failed)
@@ -92,6 +124,7 @@ def main() -> int:
             gh("POST", f"/repos/{repo}/issues/{iss['number']}/comments", {"body": text})
             gh("PATCH", f"/repos/{repo}/issues/{iss['number']}", {"title": title})
             print(f"이슈 #{iss['number']} 에 새 내용 추가")
+            kakao(kakao_text(title, failed, problem_lines, iss["number"]))
     else:
         try:
             gh("POST", f"/repos/{repo}/labels", {"name": LABEL, "color": "DA291C",
@@ -101,6 +134,7 @@ def main() -> int:
         iss = gh("POST", f"/repos/{repo}/issues",
                  {"title": title, "body": text, "labels": [LABEL], "assignees": [owner]})
         print(f"알림 이슈 생성 #{iss['number']} → {owner} 에게 할당")
+        kakao(kakao_text(title, failed, problem_lines, iss["number"]))
     return 0 if warn_only else 1
 
 
