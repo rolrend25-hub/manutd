@@ -32,6 +32,7 @@ STEPS = [  # (환경변수, 이름)
     ("OUT_STAGED", "개인정보·비밀값 검사 (커밋 직전)"),
     ("OUT_COMMIT", "커밋·푸시"),
     ("OUT_CALENDAR", "구글 캘린더 동기화"),
+    ("OUT_ENCRYPT", "사이트 비밀번호 잠금 (SITE_PASSWORD 확인)"),
 ]
 
 

@@ -42,7 +42,7 @@ jobs:
       run:
         shell: bash   # 명시해야 pipefail 적용 (| tee 뒤에서도 실패 감지)
     outputs:
-      deploy: ${{ steps.result.outputs.deploy }}
+      deploy: ${{ steps.encrypt.outcome == 'success' && 'true' || 'false' }}
     env:
       PYTHONIOENCODING: utf-8
     steps:
@@ -181,11 +181,18 @@ jobs:
             echo "deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pages 아티팩트 업로드
+      - name: 사이트 비밀번호 잠금 (데이터 암호화)
+        id: encrypt
         if: steps.result.outputs.deploy == 'true'
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}   # 없거나 짧으면 실패 → 평문 사이트 배포 안 함
+        run: python scripts/encrypt_site.py site "$RUNNER_TEMP/site_public"
+
+      - name: Pages 아티팩트 업로드
+        if: steps.encrypt.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: ${{ runner.temp }}/site_public
 
       - name: 8. 알림 (문제 시 이슈 생성 / 복구 시 닫기)
         if: always()
@@ -203,6 +210,7 @@ jobs:
           OUT_STAGED: ${{ steps.staged.outcome }}
           OUT_COMMIT: ${{ steps.commit.outcome }}
           OUT_CALENDAR: ${{ steps.calendar.outcome }}
+          OUT_ENCRYPT: ${{ steps.encrypt.outcome }}
         run: |
           if [ "${{ steps.etl.outcome }}" = "failure" ]; then
             { echo "✗ ETL 실패 (마지막 로그):"; tail -n 15 "$RUNNER_TEMP/etl.log" | sed 's/^/✗   /'; } > "$REPORT_DIR/3_etl.txt"

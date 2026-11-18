@@ -48,6 +48,10 @@
   function loadArchive() {
     if (archiveState !== "none" || !ARCH_SEASONS.length) return;
     archiveState = "loading";
+    if (window.MUFC_LOAD_ARCHIVE) {   // 비밀번호 잠금 배포본 (assets/gate.js): 암호화된 archive.enc 복호화
+      window.MUFC_LOAD_ARCHIVE().then(() => { archiveState = "ready"; render(); }, () => { archiveState = "error"; render(); });
+      return;
+    }
     const s = document.createElement("script");
     s.src = "data/archive.js?v=" + encodeURIComponent(D.generated_utc || "");
     s.onload = () => { archiveState = "ready"; render(); };
